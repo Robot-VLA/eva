@@ -39,15 +39,27 @@ class ZedCamera:
         self._current_params = None
         self._extriniscs = {}
 
-        
-        flip = sl.FLIP_MODE.ON if camera_flip_dict[self.serial_number] else sl.FLIP_MODE.OFF
+        flip = (
+            sl.FLIP_MODE.ON
+            if camera_flip_dict[self.serial_number]
+            else sl.FLIP_MODE.OFF
+        )
         self.standard_params = dict(
-            depth_minimum_distance=200, depth_mode = sl.DEPTH_MODE.NEURAL, camera_resolution=sl.RESOLUTION.HD720, depth_stabilization=False, camera_fps=60, camera_image_flip=flip,
-            camera_disable_self_calib=True
+            depth_minimum_distance=200,
+            depth_mode=sl.DEPTH_MODE.NEURAL,
+            camera_resolution=sl.RESOLUTION.HD720,
+            depth_stabilization=False,
+            camera_fps=60,
+            camera_image_flip=flip,
+            camera_disable_self_calib=True,
         )
         self.advanced_params = dict(
-            depth_minimum_distance=200, camera_resolution=sl.RESOLUTION.HD2K, depth_stabilization=False, camera_fps=15, camera_image_flip=flip,
-            camera_disable_self_calib=True
+            depth_minimum_distance=200,
+            camera_resolution=sl.RESOLUTION.HD2K,
+            depth_stabilization=False,
+            camera_fps=15,
+            camera_image_flip=flip,
+            camera_disable_self_calib=True,
         )
 
         # Open Camera #
@@ -88,8 +100,12 @@ class ZedCamera:
         self.resizer_resolution = (0, 0)
 
         # Set Mode #
-        change_settings_1 = (self.high_res_calibration) and (self._current_params != self.advanced_params)
-        change_settings_2 = (not self.high_res_calibration) and (self._current_params != self.standard_params)
+        change_settings_1 = (self.high_res_calibration) and (
+            self._current_params != self.advanced_params
+        )
+        change_settings_2 = (not self.high_res_calibration) and (
+            self._current_params != self.standard_params
+        )
         if change_settings_1:
             self._configure_camera(self.advanced_params)
         if change_settings_2:
@@ -134,7 +150,11 @@ class ZedCamera:
         self._current_params = init_params
         sl_params = sl.InitParameters(**init_params)
         sl_params.set_from_serial_number(int(self.serial_number))
-        sl_params.camera_image_flip = sl.FLIP_MODE.ON if camera_flip_dict[self.serial_number] else sl.FLIP_MODE.OFF
+        sl_params.camera_image_flip = (
+            sl.FLIP_MODE.ON
+            if camera_flip_dict[self.serial_number]
+            else sl.FLIP_MODE.OFF
+        )
         status = self._cam.open(sl_params)
         if status != sl.ERROR_CODE.SUCCESS:
             raise RuntimeError("Camera Failed To Open")
@@ -143,14 +163,20 @@ class ZedCamera:
         self.latency = int(2.5 * (1e3 / sl_params.camera_fps))
         calib_params = self._cam.get_camera_information().camera_configuration.calibration_parameters
         self._intrinsics = {
-            self.serial_number + "_left": self._process_intrinsics(calib_params.left_cam),
-            self.serial_number + "_right": self._process_intrinsics(calib_params.right_cam),
+            self.serial_number + "_left": self._process_intrinsics(
+                calib_params.left_cam
+            ),
+            self.serial_number + "_right": self._process_intrinsics(
+                calib_params.right_cam
+            ),
         }
 
     ### Calibration Utilities ###
     def _process_intrinsics(self, params):
         intrinsics = {}
-        intrinsics["cameraMatrix"] = np.array([[params.fx, 0, params.cx], [0, params.fy, params.cy], [0, 0, 1]])
+        intrinsics["cameraMatrix"] = np.array(
+            [[params.fx, 0, params.cx], [0, params.fy, params.cy], [0, 0, 1]]
+        )
         intrinsics["distCoeffs"] = np.array(list(params.disto))
         return intrinsics
 
@@ -188,36 +214,54 @@ class ZedCamera:
         timestamp_dict[self.serial_number + "_read_end"] = time_ms()
 
         # Benchmark Latency #
-        received_time = self._cam.get_timestamp(sl.TIME_REFERENCE.IMAGE).get_milliseconds()
+        received_time = self._cam.get_timestamp(
+            sl.TIME_REFERENCE.IMAGE
+        ).get_milliseconds()
         timestamp_dict[self.serial_number + "_frame_received"] = received_time
-        timestamp_dict[self.serial_number + "_estimated_capture"] = received_time - self.latency
+        timestamp_dict[self.serial_number + "_estimated_capture"] = (
+            received_time - self.latency
+        )
 
         # Return Data #
         data_dict = {}
 
         if self.image:
             if self.concatenate_images:
-                self._cam.retrieve_image(self._sbs_img, sl.VIEW.SIDE_BY_SIDE, resolution=self.zed_resolution)
-                data_dict["image"] = {self.serial_number: self._process_frame(self._sbs_img)}
+                self._cam.retrieve_image(
+                    self._sbs_img, sl.VIEW.SIDE_BY_SIDE, resolution=self.zed_resolution
+                )
+                data_dict["image"] = {
+                    self.serial_number: self._process_frame(self._sbs_img)
+                }
             else:
-                self._cam.retrieve_image(self._left_img, sl.VIEW.LEFT, resolution=self.zed_resolution)
-                self._cam.retrieve_image(self._right_img, sl.VIEW.RIGHT, resolution=self.zed_resolution)
+                self._cam.retrieve_image(
+                    self._left_img, sl.VIEW.LEFT, resolution=self.zed_resolution
+                )
+                self._cam.retrieve_image(
+                    self._right_img, sl.VIEW.RIGHT, resolution=self.zed_resolution
+                )
                 data_dict["image"] = {
                     self.serial_number + "_left": self._process_frame(self._left_img),
                     self.serial_number + "_right": self._process_frame(self._right_img),
-                }        
+                }
         if self.depth:
-            self._cam.retrieve_measure(self._left_depth, sl.MEASURE.DEPTH, resolution=self.zed_resolution)
+            self._cam.retrieve_measure(
+                self._left_depth, sl.MEASURE.DEPTH, resolution=self.zed_resolution
+            )
             # self._cam.retrieve_measure(self._right_depth, sl.MEASURE.DEPTH_RIGHT, resolution=self.zed_resolution)
-            data_dict['depth'] = {
-                self.serial_number + '_left': self._left_depth.get_data().copy(),
+            data_dict["depth"] = {
+                self.serial_number + "_left": self._left_depth.get_data().copy(),
                 # self.serial_number + '_right': self._right_depth.get_data().copy()
             }
         if self.pointcloud:
-            self._cam.retrieve_measure(self._left_pointcloud, sl.MEASURE.XYZRGBA, resolution=self.zed_resolution)
-        	# self._cam.retrieve_measure(self._right_pointcloud, sl.MEASURE.XYZRGBA_RIGHT, resolution=self.zed_resolution)
-            data_dict['pointcloud'] = {
-                self.serial_number + '_left': self._left_pointcloud.get_data().copy(),
+            self._cam.retrieve_measure(
+                self._left_pointcloud,
+                sl.MEASURE.XYZRGBA,
+                resolution=self.zed_resolution,
+            )
+            # self._cam.retrieve_measure(self._right_pointcloud, sl.MEASURE.XYZRGBA_RIGHT, resolution=self.zed_resolution)
+            data_dict["pointcloud"] = {
+                self.serial_number + "_left": self._left_pointcloud.get_data().copy(),
                 # self.serial_number + '_right': self._right_pointcloud.get_data().copy()
             }
 
@@ -233,4 +277,3 @@ class ZedCamera:
 
     def is_running(self):
         return self.current_mode != "disabled"
-    

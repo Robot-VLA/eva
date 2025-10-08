@@ -17,10 +17,20 @@ class FrankaController:
     def launch_controller(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         self._robot_process = run_terminal_command(
-            "echo " + sudo_password + " | sudo -S " + "bash " + dir_path + "/launch_robot.sh"
+            "echo "
+            + sudo_password
+            + " | sudo -S "
+            + "bash "
+            + dir_path
+            + "/launch_robot.sh"
         )
         self._gripper_process = run_terminal_command(
-            "echo " + sudo_password + " | sudo -S " + "bash " + dir_path + "/launch_gripper.sh"
+            "echo "
+            + sudo_password
+            + " | sudo -S "
+            + "bash "
+            + dir_path
+            + "/launch_gripper.sh"
         )
         time.sleep(5)
         self._server_launched = True
@@ -30,17 +40,31 @@ class FrankaController:
         self._gripper = GripperInterface(ip_address="localhost")
         self._max_gripper_width = self._gripper.metadata.max_width
         self._ik_solver = RobotIKSolver()
-    
+
     def kill_controller(self):
         self._robot_process.kill()
         self._gripper_process.kill()
         time.sleep(1)
         self._server_launched = False
 
-    def update_command(self, command, action_space="cartesian_velocity", gripper_action_space="velocity", blocking=False):
-        action_dict = self.create_action_dict(command, action_space=action_space, gripper_action_space=gripper_action_space)
-        self.update_joints(action_dict["joint_position"], velocity=False, blocking=blocking)
-        self.update_gripper(action_dict["gripper_position"], velocity=False, blocking=blocking)
+    def update_command(
+        self,
+        command,
+        action_space="cartesian_velocity",
+        gripper_action_space="velocity",
+        blocking=False,
+    ):
+        action_dict = self.create_action_dict(
+            command,
+            action_space=action_space,
+            gripper_action_space=gripper_action_space,
+        )
+        self.update_joints(
+            action_dict["joint_position"], velocity=False, blocking=blocking
+        )
+        self.update_gripper(
+            action_dict["gripper_position"], velocity=False, blocking=blocking
+        )
         return action_dict
 
     def update_pose(self, command, velocity=False, blocking=False):
@@ -53,7 +77,9 @@ class FrankaController:
             pos = torch.Tensor(command[:3])
             quat = torch.Tensor(euler_to_quat(command[3:6]))
             curr_joints = self._robot.get_joint_positions()
-            desired_joints = self._robot.solve_inverse_kinematics(pos, quat, curr_joints)
+            desired_joints = self._robot.solve_inverse_kinematics(
+                pos, quat, curr_joints
+            )
             self.update_joints(desired_joints, velocity=False, blocking=True)
         else:
             if not velocity:
@@ -62,11 +88,15 @@ class FrankaController:
                 command = self._ik_solver.cartesian_delta_to_velocity(cartesian_delta)
 
             robot_state = self.get_robot_state()[0]
-            joint_velocity = self._ik_solver.cartesian_velocity_to_joint_velocity(command, robot_state=robot_state)
+            joint_velocity = self._ik_solver.cartesian_velocity_to_joint_velocity(
+                command, robot_state=robot_state
+            )
 
             self.update_joints(joint_velocity, velocity=True, blocking=False)
 
-    def update_joints(self, command, velocity=False, blocking=False, cartesian_noise=None):
+    def update_joints(
+        self, command, velocity=False, blocking=False, cartesian_noise=None
+    ):
         if cartesian_noise is not None:
             command = self.add_noise_to_joints(command, cartesian_noise)
         command = torch.Tensor(command)
@@ -83,7 +113,9 @@ class FrankaController:
                     print("Waiting for cartesian impedance to start (non blocking)...")
                     time.sleep(0.1)
                     if time.time() > timeout:
-                        print("Timeout while waiting for cartesian impedance to start (helper non blocking), retrying...")
+                        print(
+                            "Timeout while waiting for cartesian impedance to start (helper non blocking), retrying..."
+                        )
                         self._robot.start_cartesian_impedance()
                         timeout = time.time() + 1
             try:
@@ -93,6 +125,7 @@ class FrankaController:
                 pass
 
         if blocking:
+
             def helper_blocking():
                 if self._robot.is_running_policy():
                     self._robot.terminate_current_policy()
@@ -101,7 +134,7 @@ class FrankaController:
                     time_to_go = self.adaptive_time_to_go(command)
                 try:
                     self._robot.move_to_joint_positions(command, time_to_go=time_to_go)
-                except grpc.RpcError as e:
+                except grpc.RpcError:
                     pass
 
                 self._robot.start_cartesian_impedance()
@@ -110,7 +143,9 @@ class FrankaController:
                     print("Waiting for cartesian impedance to start...")
                     time.sleep(0.1)
                     if time.time() > timeout:
-                        print("Timeout while waiting for cartesian impedance to start, retrying...")
+                        print(
+                            "Timeout while waiting for cartesian impedance to start, retrying..."
+                        )
                         self._robot.start_cartesian_impedance()
                         timeout = time.time() + 1
 
@@ -136,7 +171,12 @@ class FrankaController:
             command = gripper_delta + self.get_gripper_position()
 
         command = float(np.clip(command, 0, 1))
-        self._gripper.goto(width=self._max_gripper_width * (1 - command), speed=0.05, force=0.1, blocking=blocking)
+        self._gripper.goto(
+            width=self._max_gripper_width * (1 - command),
+            speed=0.05,
+            force=0.1,
+            blocking=blocking,
+        )
 
     def add_noise_to_joints(self, original_joints, cartesian_noise):
         original_joints = torch.Tensor(original_joints)
@@ -145,7 +185,9 @@ class FrankaController:
         new_pose = add_poses(cartesian_noise, curr_pose)
         new_pos = torch.Tensor(new_pose[:3])
         new_quat = torch.Tensor(euler_to_quat(new_pose[3:]))
-        noisy_joints, success = self._robot.solve_inverse_kinematics(new_pos, new_quat, original_joints)
+        noisy_joints, success = self._robot.solve_inverse_kinematics(
+            new_pos, new_quat, original_joints
+        )
         if success:
             desired_joints = noisy_joints
         else:
@@ -169,7 +211,9 @@ class FrankaController:
     def get_robot_state(self):
         robot_state = self._robot.get_robot_state()
         gripper_position = self.get_gripper_position()
-        pos, quat = self._robot.robot_model.forward_kinematics(torch.Tensor(robot_state.joint_positions))
+        pos, quat = self._robot.robot_model.forward_kinematics(
+            torch.Tensor(robot_state.joint_positions)
+        )
         cartesian_position = pos.tolist() + quat_to_euler(quat.numpy()).tolist()
 
         state_dict = {
@@ -178,8 +222,12 @@ class FrankaController:
             "joint_positions": list(robot_state.joint_positions),
             "joint_velocities": list(robot_state.joint_velocities),
             "joint_torques_computed": list(robot_state.joint_torques_computed),
-            "prev_joint_torques_computed": list(robot_state.prev_joint_torques_computed),
-            "prev_joint_torques_computed_safened": list(robot_state.prev_joint_torques_computed_safened),
+            "prev_joint_torques_computed": list(
+                robot_state.prev_joint_torques_computed
+            ),
+            "prev_joint_torques_computed_safened": list(
+                robot_state.prev_joint_torques_computed_safened
+            ),
             "motor_torques_measured": list(robot_state.motor_torques_measured),
             "prev_controller_latency_ms": robot_state.prev_controller_latency_ms,
             "prev_command_successful": robot_state.prev_command_successful,
@@ -199,9 +247,18 @@ class FrankaController:
         clamped_time_to_go = min(t_max, max(time_to_go, t_min))
         return clamped_time_to_go
 
-    def create_action_dict(self, action, action_space, gripper_action_space="velocity", robot_state=None):
-        assert action_space in ["cartesian_position", "joint_position", "cartesian_velocity", "joint_velocity"], f"Invalid action space: {action_space}"
-        assert gripper_action_space in ["velocity", "position"], f"Invalid gripper action space: {gripper_action_space}"
+    def create_action_dict(
+        self, action, action_space, gripper_action_space="velocity", robot_state=None
+    ):
+        assert action_space in [
+            "cartesian_position",
+            "joint_position",
+            "cartesian_velocity",
+            "joint_velocity",
+        ], f"Invalid action space: {action_space}"
+        assert gripper_action_space in ["velocity", "position"], (
+            f"Invalid gripper action space: {gripper_action_space}"
+        )
         if robot_state is None:
             robot_state = self.get_robot_state()[0]
         action_dict = {"robot_state": robot_state}
@@ -213,43 +270,61 @@ class FrankaController:
             action_dict["gripper_position"] = float(np.clip(gripper_position, 0, 1))
         else:
             action_dict["gripper_position"] = float(np.clip(action[-1], 0, 1))
-            gripper_delta = action_dict["gripper_position"] - robot_state["gripper_position"]
+            gripper_delta = (
+                action_dict["gripper_position"] - robot_state["gripper_position"]
+            )
             gripper_velocity = self._ik_solver.gripper_delta_to_velocity(gripper_delta)
             action_dict["gripper_delta"] = gripper_velocity
 
         if "cartesian" in action_space:
             if action_space == "cartesian_velocity":
                 action_dict["cartesian_velocity"] = action[:-1]
-                cartesian_delta = self._ik_solver.cartesian_velocity_to_delta(action[:-1])
+                cartesian_delta = self._ik_solver.cartesian_velocity_to_delta(
+                    action[:-1]
+                )
                 action_dict["cartesian_position"] = add_poses(
                     cartesian_delta, robot_state["cartesian_position"]
                 ).tolist()
             else:
                 action_dict["cartesian_position"] = action[:-1]
-                cartesian_delta = pose_diff(action[:-1], robot_state["cartesian_position"])
-                cartesian_velocity = self._ik_solver.cartesian_delta_to_velocity(cartesian_delta)
+                cartesian_delta = pose_diff(
+                    action[:-1], robot_state["cartesian_position"]
+                )
+                cartesian_velocity = self._ik_solver.cartesian_delta_to_velocity(
+                    cartesian_delta
+                )
                 action_dict["cartesian_velocity"] = cartesian_velocity.tolist()
 
-            action_dict["joint_velocity"] = self._ik_solver.cartesian_velocity_to_joint_velocity(
-                action_dict["cartesian_velocity"], robot_state=robot_state
+            action_dict["joint_velocity"] = (
+                self._ik_solver.cartesian_velocity_to_joint_velocity(
+                    action_dict["cartesian_velocity"], robot_state=robot_state
+                ).tolist()
+            )
+            joint_delta = self._ik_solver.joint_velocity_to_delta(
+                action_dict["joint_velocity"]
+            )
+            action_dict["joint_position"] = (
+                joint_delta + np.array(robot_state["joint_positions"])
             ).tolist()
-            joint_delta = self._ik_solver.joint_velocity_to_delta(action_dict["joint_velocity"])
-            action_dict["joint_position"] = (joint_delta + np.array(robot_state["joint_positions"])).tolist()
 
         if "joint" in action_space:
             # NOTE: Joint to Cartesian has undefined dynamics due to IK
             if action_space == "joint_velocity":
                 action_dict["joint_velocity"] = action[:-1]
                 joint_delta = self._ik_solver.joint_velocity_to_delta(action[:-1])
-                action_dict["joint_position"] = (joint_delta + np.array(robot_state["joint_positions"])).tolist()
+                action_dict["joint_position"] = (
+                    joint_delta + np.array(robot_state["joint_positions"])
+                ).tolist()
             else:
                 action_dict["joint_position"] = action[:-1]
-                joint_delta = np.array(action[:-1]) - np.array(robot_state["joint_positions"])
+                joint_delta = np.array(action[:-1]) - np.array(
+                    robot_state["joint_positions"]
+                )
                 joint_velocity = self._ik_solver.joint_delta_to_velocity(joint_delta)
                 action_dict["joint_velocity"] = joint_velocity.tolist()
 
         return action_dict
-    
+
     def close(self):
         pass
 

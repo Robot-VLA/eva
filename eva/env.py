@@ -1,4 +1,3 @@
-
 import gym
 import numpy as np
 from copy import deepcopy
@@ -12,15 +11,23 @@ from eva.utils.misc_utils import time_ms
 
 
 class FrankaEnv(gym.Env):
-    def __init__(self, action_space="cartesian_velocity", gripper_action_space="velocity", camera_kwargs=None):
+    def __init__(
+        self,
+        action_space="cartesian_velocity",
+        gripper_action_space="velocity",
+        camera_kwargs=None,
+    ):
         super().__init__()
 
-        self.reset_joints = np.array([0, -1 / 5 * np.pi, 0, -4 / 5 * np.pi, 0, 3 / 5 * np.pi, 0.0])
+        self.reset_joints = np.array(
+            [0, -1 / 5 * np.pi, 0, -4 / 5 * np.pi, 0, 3 / 5 * np.pi, 0.0]
+        )
         # self.reset_joints = np.array([0, -1 / 2 * np.pi, 0, -7 / 8 * np.pi, 0, 5 / 12 * np.pi, 0.0])
         self.control_hz = 15
 
         if nuc_ip is None:
             from eva.robot.controller import FrankaController
+
             self._robot = FrankaController()
         else:
             self._robot = ServerInterface(ip_address=nuc_ip)
@@ -30,7 +37,7 @@ class FrankaEnv(gym.Env):
         self.camera_type_dict = camera_type_dict
 
         self.initialize(action_space, gripper_action_space, camera_kwargs)
-    
+
     def initialize(self, action_space, gripper_action_space, camera_kwargs):
         # Note that in most use cases, Runner will set each of these parameters separately
         self.set_action_space(action_space)
@@ -40,7 +47,9 @@ class FrankaEnv(gym.Env):
 
     def step(self, action):
         # Check Action
-        assert len(action) == self.DoF, f"Provided action dimension ({len(action)}) does not match expected ({self.DoF}) for action space {self.action_space}!"
+        assert len(action) == self.DoF, (
+            f"Provided action dimension ({len(action)}) does not match expected ({self.DoF}) for action space {self.action_space}!"
+        )
         if self.check_action_range:
             if (action.max() > 1) or (action.min() < -1):
                 print(f"Action {action} exceeds range [-1, 1], clipping!")
@@ -58,14 +67,22 @@ class FrankaEnv(gym.Env):
 
     def reset(self):
         self._robot.update_gripper(0, velocity=False, blocking=True)
-        self._robot.update_joints(self.reset_joints, velocity=False, blocking=True, cartesian_noise=None)
+        self._robot.update_joints(
+            self.reset_joints, velocity=False, blocking=True, cartesian_noise=None
+        )
 
-    def update_robot(self, action, action_space="cartesian_velocity", gripper_action_space="velocity", blocking=False):
+    def update_robot(
+        self,
+        action,
+        action_space="cartesian_velocity",
+        gripper_action_space="velocity",
+        blocking=False,
+    ):
         action_info = self._robot.update_command(
             action,
             action_space=action_space,
             gripper_action_space=gripper_action_space,
-            blocking=blocking
+            blocking=blocking,
         )
         return action_info
 
@@ -74,19 +91,19 @@ class FrankaEnv(gym.Env):
 
     def read_cameras(self):
         return self.camera_reader.read_cameras()
-    
+
     def set_camera_trajectory_mode(self):
         self.camera_reader.set_trajectory_mode()
-    
+
     def set_camera_calibration_mode(self, cam_id):
         self.camera_reader.set_calibration_mode(cam_id)
-    
+
     def start_camera_recording(self, recording_folderpath):
         self.camera_reader.start_recording(recording_folderpath)
-    
+
     def stop_camera_recording(self):
         self.camera_reader.stop_recording()
-    
+
     def establish_robot_connection(self):
         self._robot.establish_connection()
 
@@ -96,10 +113,10 @@ class FrankaEnv(gym.Env):
         timestamp_dict["read_start"] = read_start
         timestamp_dict["read_end"] = time_ms()
         return state_dict, timestamp_dict
-    
+
     def set_camera_kwargs(self, camera_kwargs):
         self.camera_reader.set_camera_kwargs(camera_kwargs)
-    
+
     def get_camera_extrinsics(self, state_dict):
         # Adjust gripper camera by current pose
         extrinsics = deepcopy(self.calibration_dict)
@@ -132,25 +149,30 @@ class FrankaEnv(gym.Env):
         intrinsics = {}
         for cam in self.camera_reader.camera_dict.values():
             cam_intr_info = cam.get_intrinsics()
-            for (full_cam_id, info) in cam_intr_info.items():
+            for full_cam_id, info in cam_intr_info.items():
                 intrinsics[full_cam_id] = info["cameraMatrix"]
         obs_dict["camera_intrinsics"] = intrinsics
 
         return obs_dict
-    
+
     def get_control_hz(self):
         return self.control_hz
-    
+
     def set_action_space(self, action_space):
         print(f"Set action space to {action_space}")
-        assert action_space in ["cartesian_position", "joint_position", "cartesian_velocity", "joint_velocity"]
+        assert action_space in [
+            "cartesian_position",
+            "joint_position",
+            "cartesian_velocity",
+            "joint_velocity",
+        ]
         self.action_space = action_space
         self.check_action_range = "velocity" in action_space
         self.DoF = 7 if ("cartesian" in action_space) else 8
-    
+
     def set_gripper_action_space(self, gripper_action_space):
         self.gripper_action_space = gripper_action_space
-    
+
     def reload_calibration(self):
         self.calibration_dict = load_calibration_info()
 

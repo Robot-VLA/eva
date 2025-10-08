@@ -1,37 +1,35 @@
-
 import glob
 from tqdm import tqdm
 import numpy as np
-import pandas as pd
-from PIL import Image
-import csv
 import os
 import argparse
 from pathlib import Path
 import subprocess
-from collections import defaultdict
-import time
 
 from eva.utils.trajectory_utils import load_trajectory
 from eva.utils.misc_utils import get_latest_trajectory
 from eva.data_processing.timestep_processor import TimestepProcessor
-from PIL import Image
-from collections import defaultdict
 
 
 def process_data(input_path, process_depth=False, process_pcd=False):
     data_dirs = [d for d in glob.glob(str(input_path) + "**/", recursive=True)]
-    data_dirs = [d for d in data_dirs if os.path.exists(os.path.join(d, "trajectory.h5"))]
+    data_dirs = [
+        d for d in data_dirs if os.path.exists(os.path.join(d, "trajectory.h5"))
+    ]
     print("Processing data directories:")
     print(data_dirs)
-    image_transform_kwargs = {"remove_alpha": True, "bgr_to_rgb": True, "augment": False}
+    image_transform_kwargs = {
+        "remove_alpha": True,
+        "bgr_to_rgb": True,
+        "augment": False,
+    }
     camera_kwargs = {"default": {"depth": process_depth, "pointcloud": process_pcd}}
 
     timestep_processor = TimestepProcessor(
         camera_extrinsics=["fixed_camera", "hand_camera", "varied_camera"],
         image_transform_kwargs=image_transform_kwargs,
     )
-    
+
     for traj_dir in data_dirs:
         traj_dir = Path(traj_dir)
         tqdm.write(str(traj_dir))
@@ -61,8 +59,8 @@ def process_data(input_path, process_depth=False, process_pcd=False):
         states = []
         actions_pos = []
         actions_vel = []
-        depths = []
-        pointclouds = []
+        depths = []  # noqa: F841
+        pointclouds = []  # noqa: F841
 
         frames_dir = traj_dir / "recordings" / "frames"
         frames_dir.mkdir(exist_ok=True)
@@ -103,20 +101,37 @@ def process_data(input_path, process_depth=False, process_pcd=False):
                 for camera_type in camera_types:
                     depth = timestep_processor.get_depth(traj[t], camera_type)
                     np.save(depth_dir / camera_type / f"{t:05d}.npy", depth)
-            
+
             if process_pcd:
                 for camera_type in camera_types:
                     pcd = timestep_processor.get_pcd(traj[t], camera_type)
                     np.save(pcd_dir / camera_type / f"{t:05d}.npy", pcd)
 
-        trajectory = {"states": np.array(states), "actions_pos": np.array(actions_pos), "actions_vel": np.array(actions_vel)}
+        trajectory = {
+            "states": np.array(states),
+            "actions_pos": np.array(actions_pos),
+            "actions_vel": np.array(actions_vel),
+        }
         np.savez(f"{traj_dir}/trajectory.npz", **trajectory)
 
         for camera_type in camera_types:
-            subprocess.run([
-                "ffmpeg", "-y", "-framerate", "15", "-i", str(frames_dir / camera_type / f"%05d.jpg"),
-                "-c:v", "libx264", "-pix_fmt", "yuv420p", str(videos_dir / f"{camera_type}.mp4")
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-framerate",
+                    "15",
+                    "-i",
+                    str(frames_dir / camera_type / "%05d.jpg"),
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(videos_dir / f"{camera_type}.mp4"),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
 
 
 if __name__ == "__main__":

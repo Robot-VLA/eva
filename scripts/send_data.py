@@ -1,10 +1,9 @@
-
-import eva
 import argparse
 import subprocess
 import os
 
 from eva.utils.misc_utils import get_latest_trajectory, get_latest_image
+
 
 def send_data(source, destination, partial=False):
     if not os.path.exists(source):

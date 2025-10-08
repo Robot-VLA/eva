@@ -1,8 +1,7 @@
-
 import numpy as np
 
 from eva.controllers.controller import Controller
-from eva.utils.geometry_utils import add_angles, euler_to_quat, quat_diff, quat_to_euler, rmat_to_quat
+from eva.utils.geometry_utils import add_angles, euler_to_quat, quat_diff, quat_to_euler
 
 
 class Keyboard(Controller):
@@ -70,7 +69,7 @@ class Keyboard(Controller):
             "movement_enabled": False,
             "controller_on": True,
         }
-    
+
     def register_key(self, key):
         if key == ord(" "):
             self._state["movement_enabled"] = not self._state["movement_enabled"]
@@ -81,10 +80,10 @@ class Keyboard(Controller):
             self._state["failure"] = True
         else:
             self.pressed_keys.add(chr(key))
-    
+
     def get_info(self):
         return self._state.copy()
-    
+
     def _process_keys(self):
         dx, dy, dz = 0, 0, 0
         droll, dpitch, dyaw = 0, 0, 0
@@ -148,15 +147,22 @@ class Keyboard(Controller):
             if not self._state["movement_enabled"]:
                 print("Movement disabled, press space to enable!")
 
-        self.keyboard_state["pos"] = self.keyboard_state["pos"] + np.array([dx, dy, dz]) * self.spatial_coeff
-        self.keyboard_state["quat"] = euler_to_quat(add_angles(quat_to_euler(self.keyboard_state["quat"]), np.array([droll, dpitch, dyaw])))
+        self.keyboard_state["pos"] = (
+            self.keyboard_state["pos"] + np.array([dx, dy, dz]) * self.spatial_coeff
+        )
+        self.keyboard_state["quat"] = euler_to_quat(
+            add_angles(
+                quat_to_euler(self.keyboard_state["quat"]),
+                np.array([droll, dpitch, dyaw]),
+            )
+        )
         self.pressed_keys.clear()
 
     def forward(self, obs_dict):
         if self.keyboard_state:
             self._process_keys()
         return self._calculate_action(obs_dict["robot_state"])
-    
+
     def _limit_velocity(self, lin_vel, rot_vel, gripper_vel):
         """Scales down the linear and angular magnitudes of the action"""
         lin_vel_norm = np.linalg.norm(lin_vel)
@@ -181,7 +187,10 @@ class Keyboard(Controller):
         if self.reset_origin:
             self.robot_origin = {"pos": robot_pos, "quat": robot_quat}
             self.keyboard_state = {"pos": robot_pos, "quat": robot_quat, "gripper": 0}
-            self.keyboard_origin = {"pos": self.keyboard_state["pos"], "quat": self.keyboard_state["quat"]}
+            self.keyboard_origin = {
+                "pos": self.keyboard_state["pos"],
+                "quat": self.keyboard_state["quat"],
+            }
             self.reset_origin = False
 
         # Calculate Positional Action #
@@ -191,7 +200,9 @@ class Keyboard(Controller):
 
         # Calculate Euler Action #
         robot_quat_offset = quat_diff(robot_quat, self.robot_origin["quat"])
-        target_quat_offset = quat_diff(self.keyboard_state["quat"], self.keyboard_origin["quat"])
+        target_quat_offset = quat_diff(
+            self.keyboard_state["quat"], self.keyboard_origin["quat"]
+        )
         quat_action = quat_diff(target_quat_offset, robot_quat_offset)
         euler_action = quat_to_euler(quat_action)
 
@@ -208,14 +219,19 @@ class Keyboard(Controller):
         pos_action *= self.pos_action_gain
         euler_action *= self.rot_action_gain
         gripper_action *= self.gripper_action_gain
-        lin_vel, rot_vel, gripper_vel = self._limit_velocity(pos_action, euler_action, gripper_action)
+        lin_vel, rot_vel, gripper_vel = self._limit_velocity(
+            pos_action, euler_action, gripper_action
+        )
 
         # Prepare Return Values #
-        info_dict = {"target_cartesian_position": target_cartesian, "target_gripper_position": target_gripper}
+        info_dict = {
+            "target_cartesian_position": target_cartesian,
+            "target_gripper_position": target_gripper,
+        }
         action = np.concatenate([lin_vel, rot_vel, [gripper_vel]])
         action = action.clip(-1, 1)
 
         return action, info_dict
-    
+
     def close(self):
         self.running = False

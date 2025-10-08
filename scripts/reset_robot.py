@@ -1,6 +1,4 @@
-
-import eva
-from eva.eva import init_context, init_parser
+from eva.eva import init_context
 
 
 if __name__ == "__main__":

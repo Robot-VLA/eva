@@ -14,7 +14,12 @@ class TimestepProcessor:
         ignore_action=False,
         # action_space="cartesian_velocity",
         # gripper_action_space=None,
-        robot_state_keys=["cartesian_position", "gripper_position", "joint_positions", "joint_velocities"],
+        robot_state_keys=[
+            "cartesian_position",
+            "gripper_position",
+            "joint_positions",
+            "joint_velocities",
+        ],
         camera_extrinsics=["hand_camera", "varied_camera", "fixed_camera"],
         state_dtype=np.float32,
         action_dtype=np.float32,
@@ -40,13 +45,18 @@ class TimestepProcessor:
         timestep = deepcopy(timestep)
 
         # Get Relevant Camera Info #
-        camera_type_dict = {k: camera_type_to_string_dict[v] for k, v in timestep["observation"]["camera_type"].items()}
+        camera_type_dict = {
+            k: camera_type_to_string_dict[v]
+            for k, v in timestep["observation"]["camera_type"].items()
+        }
         sorted_camera_ids = sorted(camera_type_dict.keys())
 
         ### Get Robot State Info ###
         sorted_state_keys = sorted(self.robot_state_keys)
         full_robot_state = timestep["observation"]["robot_state"]
-        robot_state = [np.array(full_robot_state[key]).flatten() for key in sorted_state_keys]
+        robot_state = [
+            np.array(full_robot_state[key]).flatten() for key in sorted_state_keys
+        ]
         if len(robot_state):
             robot_state = np.concatenate(robot_state)
 
@@ -66,7 +76,9 @@ class TimestepProcessor:
                     extrinsics_dict[cam_type].append(cam2base)
 
         sorted_extrinsics_keys = sorted(extrinsics_dict.keys())
-        extrinsics_state = list(chain(*[extrinsics_dict[cam_type] for cam_type in sorted_extrinsics_keys]))
+        extrinsics_state = list(
+            chain(*[extrinsics_dict[cam_type] for cam_type in sorted_extrinsics_keys])
+        )
         if len(extrinsics_state):
             extrinsics_state = np.concatenate(extrinsics_state)
 
@@ -87,7 +99,12 @@ class TimestepProcessor:
                     intrinsics_dict[cam_type].append(intr)
 
         sorted_intrinsics_keys = sorted(intrinsics_dict.keys())
-        intrinsics_state = list([np.array(intrinsics_dict[cam_type]).flatten() for cam_type in sorted_intrinsics_keys])
+        intrinsics_state = list(
+            [
+                np.array(intrinsics_dict[cam_type]).flatten()
+                for cam_type in sorted_intrinsics_keys
+            ]
+        )
         if len(intrinsics_state):
             intrinsics_state = np.concatenate(intrinsics_state)
 
@@ -107,8 +124,12 @@ class TimestepProcessor:
                         high_dim_state_dict[obs_type][cam_type].append(data)
 
         ### Finish Observation Portion ###
-        low_level_state = np.concatenate([robot_state, extrinsics_state, intrinsics_state], dtype=self.state_dtype)
-        processed_timestep = {"observation": {"state": low_level_state, "camera": high_dim_state_dict}}
+        low_level_state = np.concatenate(
+            [robot_state, extrinsics_state, intrinsics_state], dtype=self.state_dtype
+        )
+        processed_timestep = {
+            "observation": {"state": low_level_state, "camera": high_dim_state_dict}
+        }
         self.image_transformer.forward(processed_timestep)
 
         ### Add Proper Action ###
@@ -118,15 +139,34 @@ class TimestepProcessor:
             # action = np.concatenate([arm_action, [gripper_action]], dtype=self.action_dtype)
             # processed_timestep["action"] = action
             processed_timestep["action"] = {}
-            for action_space in ["cartesian_position", "joint_position", "cartesian_velocity", "joint_velocity"]:
+            for action_space in [
+                "cartesian_position",
+                "joint_position",
+                "cartesian_velocity",
+                "joint_velocity",
+            ]:
                 arm_action = timestep["action"][action_space]
                 # this try except is due to a bug in robot.py in droid_pi0 on server where the line: action_dict["gripper_velocity"]= gripper_velocity was incorrectly written as : action_dict["gripper_delta"]  = gripper_velocity
                 try:
-                    gripper_action = timestep["action"][("gripper_velocity" if "velocity" in action_space else "gripper_position")]
+                    gripper_action = timestep["action"][
+                        (
+                            "gripper_velocity"
+                            if "velocity" in action_space
+                            else "gripper_position"
+                        )
+                    ]
                 except KeyError:
-                    gripper_action = timestep["action"][("gripper_delta" if "velocity" in action_space else "gripper_position")]
+                    gripper_action = timestep["action"][
+                        (
+                            "gripper_delta"
+                            if "velocity" in action_space
+                            else "gripper_position"
+                        )
+                    ]
 
-                action = np.concatenate([arm_action, [gripper_action]], dtype=self.action_dtype)
+                action = np.concatenate(
+                    [arm_action, [gripper_action]], dtype=self.action_dtype
+                )
                 processed_timestep["action"][action_space] = action
 
         # return raw information + meta data
@@ -134,7 +174,7 @@ class TimestepProcessor:
         processed_timestep["intrinsics_dict"] = intrinsics_dict
 
         return processed_timestep
-    
+
     def get_image_dict(self, timestep):
         return timestep["observation"]["camera"]["image"]
 

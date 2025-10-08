@@ -1,4 +1,3 @@
-
 import zerorpc
 import argparse
 from contextlib import contextmanager
@@ -12,16 +11,35 @@ def init(args=None):
 
     try:
         runner = load_runner()
-        runner.initialize(args.controller, args.controller_kwargs, args.disable_saving, args.disable_post_process, args.record_depth, args.record_pcd)
-    except:
+        runner.initialize(
+            args.controller,
+            args.controller_kwargs,
+            args.disable_saving,
+            args.disable_post_process,
+            args.record_depth,
+            args.record_pcd,
+        )
+    except:  # noqa: E722
         try:
             env = load_env()
-            env.initialize(args.action_space, args.gripper_action_space, args.camera_kwargs)
-        except:
+            env.initialize(
+                args.action_space, args.gripper_action_space, args.camera_kwargs
+            )
+        except:  # noqa: E722
             from eva.env import FrankaEnv
+
             env = FrankaEnv()
         from eva.runner import Runner
-        runner = Runner(env, controller=args.controller, controller_kwargs=args.controller_kwargs, disable_saving=args.disable_saving, disable_post_process=args.disable_post_process, record_depth=args.record_depth, record_pcd=args.record_pcd)
+
+        runner = Runner(
+            env,
+            controller=args.controller,
+            controller_kwargs=args.controller_kwargs,
+            disable_saving=args.disable_saving,
+            disable_post_process=args.disable_post_process,
+            record_depth=args.record_depth,
+            record_pcd=args.record_pcd,
+        )
     return runner
 
 
@@ -40,12 +58,22 @@ def init_context(args=None):
 
 def init_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--controller", default="oculus", choices=["oculus", "keyboard", "gello", "spacemouse", "policy", "proxy"])
+    parser.add_argument(
+        "--controller",
+        default="oculus",
+        choices=["oculus", "keyboard", "gello", "spacemouse", "policy", "proxy"],
+    )
     parser.add_argument("--controller_kwargs", type=dict, default={})
-    parser.add_argument("--disable_saving", action="store_true", help="Disable saving data")
-    parser.add_argument("--disable_post_process", action="store_true", help="Disable post processing")
+    parser.add_argument(
+        "--disable_saving", action="store_true", help="Disable saving data"
+    )
+    parser.add_argument(
+        "--disable_post_process", action="store_true", help="Disable post processing"
+    )
     parser.add_argument("--record_depth", action="store_true", help="Record depth data")
-    parser.add_argument("--record_pcd", action="store_true", help="Record point cloud data")
+    parser.add_argument(
+        "--record_pcd", action="store_true", help="Record point cloud data"
+    )
     return parser
 
 
@@ -67,10 +95,12 @@ def start_runner():
         server.close()
         runner.close()
 
+
 def load_runner():
     client = zerorpc.Client(heartbeat=None, timeout=None)
     client.connect("tcp://localhost:4545")
     return client
+
 
 def start_env():
     from eva.env import FrankaEnv
@@ -85,6 +115,7 @@ def start_env():
         print("Shutting down env...")
         server.close()
         env.close()
+
 
 def load_env():
     client = zerorpc.Client(heartbeat=None, timeout=None)

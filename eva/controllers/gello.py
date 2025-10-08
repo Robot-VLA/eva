@@ -54,7 +54,9 @@ class Gello(Controller):
         run_threaded_command(self._update_internal_state)
 
         print("Warning: GELLO controller is experimental!")
-        print("Since the GELLO motors are not strong enough to hold itself up, it cannot easily match the Franka. During init, the Franka will jerk toward the GELLO's joint positions.")
+        print(
+            "Since the GELLO motors are not strong enough to hold itself up, it cannot easily match the Franka. During init, the Franka will jerk toward the GELLO's joint positions."
+        )
         print("This should be replaced by FACTR once it's released.")
 
     def reset_state(self):
@@ -71,7 +73,7 @@ class Gello(Controller):
         while self.running:
             time.sleep(1 / hz)
             time_since_read = time.time() - last_read_time
-            
+
             gello_state = self.gello_device.advance()
             gello_joints = gello_state[:-1]
             gello_gripper = gello_state[-1]
@@ -79,7 +81,7 @@ class Gello(Controller):
 
             self._state["controller_on"] = time_since_read < num_wait_sec
 
-            toggled = self._state["movement_enabled"] != movement_enabled
+            toggled = self._state["movement_enabled"] != movement_enabled  # noqa: F841
             self.update_sensor = self.update_sensor or movement_enabled
 
             # Save Info #
@@ -87,13 +89,15 @@ class Gello(Controller):
             self._state["joints"] = gello_joints
             self._state["gripper"] = gello_gripper
 
-
             self._state["movement_enabled"] = movement_enabled
             self._state["controller_on"] = True
             last_read_time = time.time()
 
     def _process_reading(self):
-        self.gello_state = {"joints": self._state["joints"], "gripper": self._state["gripper"]}
+        self.gello_state = {
+            "joints": self._state["joints"],
+            "gripper": self._state["gripper"],
+        }
 
     def _limit_velocity(self, lin_vel, rot_vel, gripper_vel):
         """Scales down the linear and angular magnitudes of the action"""
@@ -112,8 +116,13 @@ class Gello(Controller):
         if self.update_sensor:
             self._process_reading()
             self.update_sensor = False
-        info_dict = {"target_joint_positions": self.gello_state["joints"], "target_gripper_position": self.gello_state["gripper"]}
-        action = np.concatenate([self.gello_state["joints"], [self.gello_state["gripper"]]])
+        info_dict = {
+            "target_joint_positions": self.gello_state["joints"],
+            "target_gripper_position": self.gello_state["gripper"],
+        }
+        action = np.concatenate(
+            [self.gello_state["joints"], [self.gello_state["gripper"]]]
+        )
 
         return action, info_dict
 
@@ -127,9 +136,9 @@ class Gello(Controller):
 
     def forward(self, obs_dict):
         return self._calculate_action(obs_dict["robot_state"])
-    
+
     def register_key(self, key):
         pass
-    
+
     def close(self):
         self.running = False

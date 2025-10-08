@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 
 
@@ -13,7 +12,7 @@ class Controller(ABC):
 
     def get_action_space(self):
         return self.action_space
-    
+
     def get_gripper_action_space(self):
         return self.gripper_action_space
 

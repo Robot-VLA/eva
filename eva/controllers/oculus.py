@@ -4,7 +4,13 @@ import numpy as np
 from oculus_reader.reader import OculusReader
 
 from eva.controllers.controller import Controller
-from eva.utils.geometry_utils import add_angles, euler_to_quat, quat_diff, quat_to_euler, rmat_to_quat
+from eva.utils.geometry_utils import (
+    add_angles,
+    euler_to_quat,
+    quat_diff,
+    quat_to_euler,
+    rmat_to_quat,
+)
 from eva.utils.misc_utils import run_threaded_command
 
 
@@ -89,15 +95,17 @@ class Oculus(Controller):
             last_read_time = time.time()
 
             # Update Definition Of "Forward" #
-            stop_updating = self._state["buttons"]["RJ"] or self._state["movement_enabled"]
+            stop_updating = (
+                self._state["buttons"]["RJ"] or self._state["movement_enabled"]
+            )
             if self.reset_orientation:
                 rot_mat = np.asarray(self._state["poses"][self.controller_id])
                 if stop_updating:
                     self.reset_orientation = False
-                # try to invert the rotation matrix, if not possible, then just use the identity matrix                
+                # try to invert the rotation matrix, if not possible, then just use the identity matrix
                 try:
                     rot_mat = np.linalg.inv(rot_mat)
-                except:
+                except:  # noqa: E722
                     print(f"exception for rot mat: {rot_mat}")
                     rot_mat = np.eye(4)
                     self.reset_orientation = True
@@ -140,7 +148,10 @@ class Oculus(Controller):
         # Reset Origin On Release #
         if self.reset_origin:
             self.robot_origin = {"pos": robot_pos, "quat": robot_quat}
-            self.vr_origin = {"pos": self.vr_state["pos"], "quat": self.vr_state["quat"]}
+            self.vr_origin = {
+                "pos": self.vr_state["pos"],
+                "quat": self.vr_state["quat"],
+            }
             self.reset_origin = False
 
         # Calculate Positional Action #
@@ -167,10 +178,15 @@ class Oculus(Controller):
         pos_action *= self.pos_action_gain
         euler_action *= self.rot_action_gain
         gripper_action *= self.gripper_action_gain
-        lin_vel, rot_vel, gripper_vel = self._limit_velocity(pos_action, euler_action, gripper_action)
+        lin_vel, rot_vel, gripper_vel = self._limit_velocity(
+            pos_action, euler_action, gripper_action
+        )
 
         # Prepare Return Values #
-        info_dict = {"target_cartesian_position": target_cartesian, "target_gripper_position": target_gripper}
+        info_dict = {
+            "target_cartesian_position": target_cartesian,
+            "target_gripper_position": target_gripper,
+        }
         action = np.concatenate([lin_vel, rot_vel, [gripper_vel]])
         action = action.clip(-1, 1)
 
@@ -189,11 +205,11 @@ class Oculus(Controller):
             action = np.zeros(7)
             return action, {}
         return self._calculate_action(obs_dict["robot_state"])
-    
+
     def register_key(self, key):
         if key == ord(" "):
             self.reset_origin = True
-    
+
     def close(self):
         self.running = False
         self.oculus_reader.stop()

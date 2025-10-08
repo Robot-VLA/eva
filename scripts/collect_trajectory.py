@@ -1,5 +1,3 @@
-
-import eva
 from tqdm import tqdm
 
 from eva.eva import init_context, init_parser

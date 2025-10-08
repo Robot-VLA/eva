@@ -8,19 +8,26 @@ from tqdm import tqdm
 from eva.cameras.svo_reader import SVOReader
 import argparse
 from pathlib import Path
-import pdb
+
+
 def convert_svo_to_mp4(filepath, recording_folderpath):
     # Open SVO Reader #f.split("/")[-1].split(".")[0]
     serial_number = filepath.split("/")[-1].split(".")[0]
     camera = SVOReader(filepath, serial_number=serial_number)
-    camera.set_reading_parameters(image=True, depth=False, pointcloud=False, concatenate_images=True)
+    camera.set_reading_parameters(
+        image=True, depth=False, pointcloud=False, concatenate_images=True
+    )
     width, height = camera.get_frame_resolution()
 
     # Create MP4 Writer #
-    video_output_path = os.path.join(recording_folderpath, "MP4", serial_number + ".mp4")
+    video_output_path = os.path.join(
+        recording_folderpath, "MP4", serial_number + ".mp4"
+    )
     timestamp_output_path = video_output_path[:-4] + "_timestamps.json"
     video_codec = cv2.VideoWriter_fourcc(*"mp4v")
-    video_writer = cv2.VideoWriter(video_output_path, fourcc=video_codec, fps=15, frameSize=(width * 2, height))
+    video_writer = cv2.VideoWriter(
+        video_output_path, fourcc=video_codec, fps=15, frameSize=(width * 2, height)
+    )
 
     # Convert To MP4 #
     frame_count = camera.get_frame_count()
@@ -47,11 +54,15 @@ def convert_svo_to_mp4(filepath, recording_folderpath):
 
 
 def prepare_dataset_for_training(input_path):
-    '''
+    """
     The first step of preparing the dataset is to convert svo to mp4.
-    '''
+    """
     corrupted_traj = []
-    all_folderpaths = [os.path.join(input_path, f) for f in os.listdir(input_path) if os.path.isdir(os.path.join(input_path, f))]
+    all_folderpaths = [
+        os.path.join(input_path, f)
+        for f in os.listdir(input_path)
+        if os.path.isdir(os.path.join(input_path, f))
+    ]
     for folderpath in tqdm(all_folderpaths):
         recording_folderpath = os.path.join(folderpath, "recordings")
         mp4_folderpath = os.path.join(recording_folderpath, "MP4")

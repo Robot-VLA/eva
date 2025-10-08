@@ -38,7 +38,9 @@ class RobotArm(robot_arm.RobotArm):
         """Returns the `mjcf.RootElement` object corresponding to this robot."""
         return self._mjcf_root
 
-    def update_state(self, physics: mjcf.Physics, qpos: np.ndarray, qvel: np.ndarray) -> None:
+    def update_state(
+        self, physics: mjcf.Physics, qpos: np.ndarray, qvel: np.ndarray
+    ) -> None:
         physics.bind(self._joints).qpos[:] = qpos
         physics.bind(self._joints).qvel[:] = qvel
 
@@ -53,7 +55,9 @@ class RobotArm(robot_arm.RobotArm):
     def wrist_site(self) -> types.MjcfElement:
         return self._wrist_site
 
-    def initialize_episode(self, physics: mjcf.Physics, random_state: np.random.RandomState):
+    def initialize_episode(
+        self, physics: mjcf.Physics, random_state: np.random.RandomState
+    ):
         """Function called at the beginning of every episode."""
         del random_state  # Unused.
         return
@@ -63,6 +67,8 @@ class FrankaArm(RobotArm):
     def _build(self):
         self._name = "franka"
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        self._model_file = os.path.join(dir_path, "franka", "{0}.xml".format(robot_type))
+        self._model_file = os.path.join(
+            dir_path, "franka", "{0}.xml".format(robot_type)
+        )
         self._mjcf_root = mjcf.from_path(self._model_file)
         self._create_body()

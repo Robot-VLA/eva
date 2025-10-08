@@ -10,7 +10,6 @@ from PIL import Image
 import h5py
 import imageio
 
-from eva.data_processing.image_transformer import ImageTransformer
 from eva.data_processing.timestep_processor import TimestepProcessor
 from eva.cameras.multi_camera_wrapper import RecordedMultiCameraWrapper
 from eva.utils.parameters import camera_type_to_string_dict
@@ -18,7 +17,10 @@ from eva.utils.misc_utils import time_ms, run_threaded_command
 
 ##############################################################
 
-def write_dict_to_hdf5(hdf5_file, data_dict, keys_to_ignore=["image", "depth", "pointcloud"]):
+
+def write_dict_to_hdf5(
+    hdf5_file, data_dict, keys_to_ignore=["image", "depth", "pointcloud"]
+):
     for key in data_dict.keys():
         # Pass Over Specified Keys #
         if key in keys_to_ignore:
@@ -26,12 +28,12 @@ def write_dict_to_hdf5(hdf5_file, data_dict, keys_to_ignore=["image", "depth", "
 
         # Examine Data #
         curr_data = data_dict[key]
-        if type(curr_data) == list:
+        if type(curr_data) == list:  # noqa: E721
             curr_data = np.array(curr_data)
         dtype = type(curr_data)
 
         # Unwrap If Dictionary #
-        if dtype == dict:
+        if dtype == dict:  # noqa: E721
             if key not in hdf5_file:
                 hdf5_file.create_group(key)
             write_dict_to_hdf5(hdf5_file[key], curr_data)
@@ -43,7 +45,9 @@ def write_dict_to_hdf5(hdf5_file, data_dict, keys_to_ignore=["image", "depth", "
                 dshape = ()
             else:
                 dtype, dshape = curr_data.dtype, curr_data.shape
-            hdf5_file.create_dataset(key, (1, *dshape), maxshape=(None, *dshape), dtype=dtype)
+            hdf5_file.create_dataset(
+                key, (1, *dshape), maxshape=(None, *dshape), dtype=dtype
+            )
         else:
             hdf5_file[key].resize(hdf5_file[key].shape[0] + 1, axis=0)
 
@@ -62,7 +66,11 @@ class TrajectoryWriter:
 
         self.post_process = post_process
         if self.post_process:
-            image_transform_kwargs = {"remove_alpha": True, "bgr_to_rgb": True, "augment": False}
+            image_transform_kwargs = {
+                "remove_alpha": True,
+                "bgr_to_rgb": True,
+                "augment": False,
+            }
             self._timestep_processor = TimestepProcessor(
                 camera_extrinsics=["fixed_camera", "hand_camera", "varied_camera"],
                 image_transform_kwargs=image_transform_kwargs,
@@ -80,7 +88,10 @@ class TrajectoryWriter:
         # Start HDF5 Writer Thread #
         def hdf5_writer(data):
             return write_dict_to_hdf5(self._hdf5_file, data)
-        run_threaded_command(self._write_from_queue, args=(hdf5_writer, self._queue_dict["hdf5"]))
+
+        run_threaded_command(
+            self._write_from_queue, args=(hdf5_writer, self._queue_dict["hdf5"])
+        )
 
     def write_timestep(self, timestep):
         self._queue_dict["hdf5"].put(timestep)
@@ -102,26 +113,42 @@ class TrajectoryWriter:
                 continue
             writer(data)
             queue.task_done()
-    
+
     def _update_video_files(self, timestep):
         image_dict = self._timestep_processor.get_image_dict(timestep)
 
         for video_id, (img, _) in image_dict.items():
             if video_id not in self._video_writers:
                 filename = os.path.join(self._dirpath, "recordings", f"{video_id}.mp4")
-                self._video_writers[video_id] = imageio.get_writer(filename, fps=15, macro_block_size=1)
+                self._video_writers[video_id] = imageio.get_writer(
+                    filename, fps=15, macro_block_size=1
+                )
                 run_threaded_command(
-                    self._write_from_queue, args=(self._video_writers[video_id].append_data, self._queue_dict[video_id])
+                    self._write_from_queue,
+                    args=(
+                        self._video_writers[video_id].append_data,
+                        self._queue_dict[video_id],
+                    ),
                 )
             if video_id not in self.t:
                 self.t[video_id] = 0
-                os.makedirs(os.path.join(self._dirpath, "recordings", "frames", video_id), exist_ok=True)
+                os.makedirs(
+                    os.path.join(self._dirpath, "recordings", "frames", video_id),
+                    exist_ok=True,
+                )
 
             self._queue_dict[video_id].put(img)
-            Image.fromarray(img[:, :, :3]).save(os.path.join(self._dirpath, "recordings", "frames", video_id, f"{self.t[video_id]:05d}.jpg"))
+            Image.fromarray(img[:, :, :3]).save(
+                os.path.join(
+                    self._dirpath,
+                    "recordings",
+                    "frames",
+                    video_id,
+                    f"{self.t[video_id]:05d}.jpg",
+                )
+            )
             self.t[video_id] += 1
 
-    
     def _update_npz_data(self, timestep):
         self._npz_data["states"].append(timestep["observation"]["state"])
         self._npz_data["actions_pos"].append(timestep["action"]["cartesian_position"])
@@ -147,6 +174,7 @@ class TrajectoryWriter:
 
 
 ##############################################################
+
 
 def create_video_file(suffix=".mp4", byte_contents=None):
     # Create Temporary File #
@@ -192,7 +220,9 @@ def load_hdf5_to_dict(hdf5_file, index, keys_to_ignore=[]):
 
         curr_data = hdf5_file[key]
         if isinstance(curr_data, h5py.Group):
-            data_dict[key] = load_hdf5_to_dict(curr_data, index, keys_to_ignore=keys_to_ignore)
+            data_dict[key] = load_hdf5_to_dict(
+                curr_data, index, keys_to_ignore=keys_to_ignore
+            )
         elif isinstance(curr_data, h5py.Dataset):
             data_dict[key] = curr_data[index]
         else:
@@ -224,7 +254,9 @@ class TrajectoryReader:
 
         # Load Low Dimensional Data #
         keys_to_ignore = [*keys_to_ignore.copy(), "videos"]
-        timestep = load_hdf5_to_dict(self._hdf5_file, self._index, keys_to_ignore=keys_to_ignore)
+        timestep = load_hdf5_to_dict(
+            self._hdf5_file, self._index, keys_to_ignore=keys_to_ignore
+        )
 
         # Load High Dimensional Data #
         if self._read_images:
@@ -260,8 +292,8 @@ class TrajectoryReader:
         self._hdf5_file.close()
 
 
-
 ##############################################################
+
 
 def run_trajectory(
     env,
@@ -284,7 +316,9 @@ def run_trajectory(
 
     # Prepare Data Writers If Necesary #
     if save_filepath:
-        traj_writer = TrajectoryWriter(save_filepath, metadata=metadata, post_process=post_process)
+        traj_writer = TrajectoryWriter(
+            save_filepath, metadata=metadata, post_process=post_process
+        )
     if recording_folderpath:
         env.start_camera_recording(recording_folderpath)
 
@@ -374,7 +408,9 @@ def load_trajectory(
         if remove_skipped_steps:
             num_to_save = int(num_to_save * num_samples_per_traj_coeff)
         max_size = min(num_to_save, horizon)
-        indices_to_save = np.sort(np.random.choice(horizon, size=max_size, replace=False))
+        indices_to_save = np.sort(
+            np.random.choice(horizon, size=max_size, replace=False)
+        )
     else:
         indices_to_save = np.arange(horizon)
 
@@ -387,10 +423,13 @@ def load_trajectory(
         if read_recording_folderpath:
             timestamp_dict = timestep["observation"]["timestamp"]["cameras"]
             camera_type_dict = {
-                k: camera_type_to_string_dict[v] for k, v in timestep["observation"]["camera_type"].items()
+                k: camera_type_to_string_dict[v]
+                for k, v in timestep["observation"]["camera_type"].items()
             }
             camera_obs = camera_reader.read_cameras(
-                index=i, camera_type_dict=camera_type_dict, timestamp_dict=timestamp_dict
+                index=i,
+                camera_type_dict=camera_type_dict,
+                timestamp_dict=timestamp_dict,
             )
             camera_failed = camera_obs is None
 
@@ -412,8 +451,12 @@ def load_trajectory(
 
     # Remove Extra Transitions #
     timestep_list = np.array(timestep_list)
-    if (num_samples_per_traj is not None) and (len(timestep_list) > num_samples_per_traj):
-        ind_to_keep = np.random.choice(len(timestep_list), size=num_samples_per_traj, replace=False)
+    if (num_samples_per_traj is not None) and (
+        len(timestep_list) > num_samples_per_traj
+    ):
+        ind_to_keep = np.random.choice(
+            len(timestep_list), size=num_samples_per_traj, replace=False
+        )
         timestep_list = timestep_list[ind_to_keep]
 
     # Close Readers #
@@ -425,7 +468,9 @@ def load_trajectory(
     return timestep_list
 
 
-def visualize_timestep(timestep, max_width=1000, max_height=500, aspect_ratio=1.5, pause_time=15):
+def visualize_timestep(
+    timestep, max_width=1000, max_height=500, aspect_ratio=1.5, pause_time=15
+):
     # Process Image Data #
     obs = timestep["observation"]
     if "image" in obs:
@@ -439,7 +484,7 @@ def visualize_timestep(timestep, max_width=1000, max_height=500, aspect_ratio=1.
     sorted_image_list = []
     for cam_id in camera_ids:
         data = img_obs[cam_id]
-        if type(data) == list:
+        if isinstance(data, list):
             sorted_image_list.extend(data)
         else:
             sorted_image_list.append(data)
@@ -488,7 +533,7 @@ def visualize_trajectory(
 ):
     traj_reader = TrajectoryReader(filepath, read_images=True)
     if recording_folderpath:
-        if camera_kwargs is {}:
+        if camera_kwargs == {}:
             camera_kwargs = defaultdict(lambda: {"image": True})
         camera_reader = RecordedMultiCameraWrapper(recording_folderpath, camera_kwargs)
 
@@ -503,10 +548,13 @@ def visualize_trajectory(
         if recording_folderpath:
             timestamp_dict = timestep["observation"]["timestamp"]["cameras"]
             camera_type_dict = {
-                k: camera_type_to_string_dict[v] for k, v in timestep["observation"]["camera_type"].items()
+                k: camera_type_to_string_dict[v]
+                for k, v in timestep["observation"]["camera_type"].items()
             }
             camera_obs = camera_reader.read_cameras(
-                index=i, camera_type_dict=camera_type_dict, timestamp_dict=timestamp_dict
+                index=i,
+                camera_type_dict=camera_type_dict,
+                timestamp_dict=timestamp_dict,
             )
             camera_failed = camera_obs is None
 
@@ -530,7 +578,11 @@ def visualize_trajectory(
 
         # Visualize Timestep #
         visualize_timestep(
-            timestep, max_width=max_width, max_height=max_height, aspect_ratio=aspect_ratio, pause_time=15
+            timestep,
+            max_width=max_width,
+            max_height=max_height,
+            aspect_ratio=aspect_ratio,
+            pause_time=15,
         )
 
     # Close Readers #

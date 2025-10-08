@@ -1,11 +1,4 @@
-
-import eva
-import argparse
-import threading
-import numpy as np
-import cv2
-
-from eva.eva import init_context, init_parser
+from eva.eva import init_context
 from eva.runner import Runner
 
 

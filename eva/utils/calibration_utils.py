@@ -10,8 +10,22 @@ from scipy.spatial.transform import Rotation as R
 from copy import deepcopy
 import shutil
 
-from eva.utils.parameters import hand_camera_id, ARUCO_DICT, CHARUCOBOARD_ROWCOUNT, CHARUCOBOARD_COLCOUNT, CHARUCOBOARD_CHECKER_SIZE, CHARUCOBOARD_MARKER_SIZE
-from eva.utils.geometry_utils import pose_diff, change_pose_frame, euler_to_rmat, project_camera_to_image, transform_world_to_camera, compose_transformation_matrix
+from eva.utils.parameters import (
+    hand_camera_id,
+    ARUCO_DICT,
+    CHARUCOBOARD_ROWCOUNT,
+    CHARUCOBOARD_COLCOUNT,
+    CHARUCOBOARD_CHECKER_SIZE,
+    CHARUCOBOARD_MARKER_SIZE,
+)
+from eva.utils.geometry_utils import (
+    pose_diff,
+    change_pose_frame,
+    euler_to_rmat,
+    project_camera_to_image,
+    transform_world_to_camera,
+    compose_transformation_matrix,
+)
 
 # Create Board #
 CHARUCO_BOARD = aruco.CharucoBoard_create(
@@ -25,7 +39,11 @@ CHARUCO_BOARD = aruco.CharucoBoard_create(
 # Detector Params
 detector_params = cv2.aruco.DetectorParameters_create()
 detector_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-calib_flags = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_FIX_PRINCIPAL_POINT + cv2.CALIB_FIX_FOCAL_LENGTH
+calib_flags = (
+    cv2.CALIB_USE_INTRINSIC_GUESS
+    + cv2.CALIB_FIX_PRINCIPAL_POINT
+    + cv2.CALIB_FIX_FOCAL_LENGTH
+)
 
 # Prepare Calibration Info #
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -38,13 +56,19 @@ def load_calibration_info(keep_time=False):
     with open(calib_info_filepath, "r") as jsonFile:
         calibration_info = json.load(jsonFile)
     if not keep_time:
-        calibration_info = {key: data["extrinsics"] for key, data in calibration_info.items()}
+        calibration_info = {
+            key: data["extrinsics"] for key, data in calibration_info.items()
+        }
     return calibration_info
 
 
 def update_calibration_info(cam_id, intrinsics, extrinsics):
     calibration_info = load_calibration_info(keep_time=True)
-    calibration_info[cam_id] = {"intrinsics": list(intrinsics), "extrinsics": list(extrinsics), "timestamp": time.time()}
+    calibration_info[cam_id] = {
+        "intrinsics": list(intrinsics),
+        "extrinsics": list(extrinsics),
+        "timestamp": time.time(),
+    }
     with open(calib_info_filepath, "w") as jsonFile:
         json.dump(calibration_info, jsonFile)
 
@@ -133,7 +157,9 @@ class CharucoDetector:
         img_size = image.shape[:2]
 
         # Find Aruco Markers In Image #
-        corners, ids, rejected = aruco.detectMarkers(image=gray, dictionary=ARUCO_DICT, parameters=detector_params)
+        corners, ids, rejected = aruco.detectMarkers(
+            image=gray, dictionary=ARUCO_DICT, parameters=detector_params
+        )
 
         corners, ids, _, _ = cv2.aruco.refineDetectedMarkers(
             gray,
@@ -149,8 +175,14 @@ class CharucoDetector:
         if len(corners) == 0:
             return None
 
-        num_corners_found, charuco_corners, charuco_ids = aruco.interpolateCornersCharuco(
-            markerCorners=corners, markerIds=ids, image=gray, board=CHARUCO_BOARD, **self.intrinsic_params
+        num_corners_found, charuco_corners, charuco_ids = (
+            aruco.interpolateCornersCharuco(
+                markerCorners=corners,
+                markerIds=ids,
+                image=gray,
+                board=CHARUCO_BOARD,
+                **self.intrinsic_params,
+            )
         )
 
         if num_corners_found < self.num_corner_threshold:
@@ -187,27 +219,40 @@ class CharucoDetector:
         # print('Num Points: ', len(init_successes))
         # return None
 
-        calibration_error, cameraMatrix, distCoeffs, rvecs, tvecs, stdIntrinsics, stdExtrinsics, perViewErrors = (
-            aruco.calibrateCameraCharucoExtended(
-                charucoCorners=init_corners_all,
-                charucoIds=init_ids_all,
-                board=CHARUCO_BOARD,
-                imageSize=fixed_image_size,
-                flags=calib_flags,
-                **self._intrinsics_dict[self._curr_cam_id],
-            )
+        (
+            calibration_error,
+            cameraMatrix,
+            distCoeffs,
+            rvecs,
+            tvecs,
+            stdIntrinsics,
+            stdExtrinsics,
+            perViewErrors,
+        ) = aruco.calibrateCameraCharucoExtended(
+            charucoCorners=init_corners_all,
+            charucoIds=init_ids_all,
+            board=CHARUCO_BOARD,
+            imageSize=fixed_image_size,
+            flags=calib_flags,
+            **self._intrinsics_dict[self._curr_cam_id],
         )
 
         # Remove Outliers #
         threshold = self.num_img_threshold if train else 5
         final_corners_all = [
-            init_corners_all[i] for i in range(len(perViewErrors)) if perViewErrors[i] <= self.inlier_error_threshold
+            init_corners_all[i]
+            for i in range(len(perViewErrors))
+            if perViewErrors[i] <= self.inlier_error_threshold
         ]
         final_ids_all = [
-            init_ids_all[i] for i in range(len(perViewErrors)) if perViewErrors[i] <= self.inlier_error_threshold
+            init_ids_all[i]
+            for i in range(len(perViewErrors))
+            if perViewErrors[i] <= self.inlier_error_threshold
         ]
         final_successes = [
-            init_successes[i] for i in range(len(perViewErrors)) if perViewErrors[i] <= self.inlier_error_threshold
+            init_successes[i]
+            for i in range(len(perViewErrors))
+            if perViewErrors[i] <= self.inlier_error_threshold
         ]
         if len(final_successes) < threshold:
             return None
@@ -218,13 +263,15 @@ class CharucoDetector:
         # return None
 
         # Second Pass: Calculate Finalized Extrinsics #
-        calibration_error, cameraMatrix, distCoeffs, rvecs, tvecs = aruco.calibrateCameraCharuco(
-            charucoCorners=final_corners_all,
-            charucoIds=final_ids_all,
-            board=CHARUCO_BOARD,
-            imageSize=fixed_image_size,
-            flags=calib_flags,
-            **self._intrinsics_dict[self._curr_cam_id],
+        calibration_error, cameraMatrix, distCoeffs, rvecs, tvecs = (
+            aruco.calibrateCameraCharuco(
+                charucoCorners=final_corners_all,
+                charucoIds=final_ids_all,
+                board=CHARUCO_BOARD,
+                imageSize=fixed_image_size,
+                flags=calib_flags,
+                **self._intrinsics_dict[self._curr_cam_id],
+            )
         )
 
         # Return Transformation #
@@ -239,10 +286,14 @@ class CharucoDetector:
 
         return rmats, tvecs, final_successes
 
-    def augment_image(self, cam_id, image, visualize=False, visual_type=["markers", "axes"]):
-        if type(visual_type) != list:
+    def augment_image(
+        self, cam_id, image, visualize=False, visual_type=["markers", "axes"]
+    ):
+        if type(visual_type) != list:  # noqa: E721
             visual_type = [visual_type]
-        assert all([t in ["markers", "charuco", "axes"] for t in visual_type]), "Error in augment_image!"
+        assert all([t in ["markers", "charuco", "axes"] for t in visual_type]), (
+            "Error in augment_image!"
+        )
         if image.shape[2] == 4:
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
         self._curr_cam_id = cam_id
@@ -264,16 +315,20 @@ class CharucoDetector:
 
         # Draw the Charuco board we've detected to show our calibrator the board was properly detected
         if "charuco" in visual_type:
-            image = aruco.drawDetectedCornersCharuco(image=image, charucoCorners=charuco_corners, charucoIds=charuco_ids)
+            image = aruco.drawDetectedCornersCharuco(
+                image=image, charucoCorners=charuco_corners, charucoIds=charuco_ids
+            )
 
         if "axes" in visual_type:
-            calibration_error, cameraMatrix, distCoeffs, rvecs, tvecs = aruco.calibrateCameraCharuco(
-                charucoCorners=[charuco_corners],
-                charucoIds=[charuco_ids],
-                board=CHARUCO_BOARD,
-                imageSize=image_size,
-                flags=calib_flags,
-                **self._intrinsics_dict[self._curr_cam_id],
+            calibration_error, cameraMatrix, distCoeffs, rvecs, tvecs = (
+                aruco.calibrateCameraCharuco(
+                    charucoCorners=[charuco_corners],
+                    charucoIds=[charuco_ids],
+                    board=CHARUCO_BOARD,
+                    imageSize=image_size,
+                    flags=calib_flags,
+                    **self._intrinsics_dict[self._curr_cam_id],
+                )
             )
             cv2.drawFrameAxes(image, cameraMatrix, distCoeffs, rvecs[0], tvecs[0], 0.1)
 
@@ -287,7 +342,12 @@ class CharucoDetector:
 
 class ThirdPersonCameraCalibrator(CharucoDetector):
     def __init__(
-        self, intrinsics_dict, lin_error_threshold=1e-3, rot_error_threshold=1e-2, train_percentage=0.7, **kwargs
+        self,
+        intrinsics_dict,
+        lin_error_threshold=1e-3,
+        rot_error_threshold=1e-2,
+        train_percentage=0.7,
+        **kwargs,
     ):
         self.lin_error_threshold = lin_error_threshold
         self.rot_error_threshold = rot_error_threshold
@@ -297,10 +357,15 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
     def calibrate(self, cam_id):
         return self._calibrate_cam_to_base(cam_id=cam_id)
 
-    def _calibrate_cam_to_base(self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None):
+    def _calibrate_cam_to_base(
+        self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None
+    ):
         # Get Calibration Data #
         if cam_id is not None:
-            readings, gripper_poses = self._readings_dict[cam_id], self._pose_dict[cam_id]
+            readings, gripper_poses = (
+                self._readings_dict[cam_id],
+                self._pose_dict[cam_id],
+            )
             self._curr_cam_id = cam_id
 
         # Get Target2Cam Transformation #
@@ -314,9 +379,12 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
 
         # Calculate Appropriate Transformations #
         t_base2gripper = [
-            -R.from_euler("xyz", pose[3:6]).inv().as_matrix() @ np.array(pose[:3]) for pose in gripper_poses
+            -R.from_euler("xyz", pose[3:6]).inv().as_matrix() @ np.array(pose[:3])
+            for pose in gripper_poses
         ]
-        R_base2gripper = [R.from_euler("xyz", pose[3:6]).inv().as_matrix() for pose in gripper_poses]
+        R_base2gripper = [
+            R.from_euler("xyz", pose[3:6]).inv().as_matrix() for pose in gripper_poses
+        ]
 
         # Perform Calibration #
         rmat, pos = cv2.calibrateHandEye(
@@ -334,10 +402,15 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
 
         return pose
 
-    def _calibrate_gripper_to_target(self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None):
+    def _calibrate_gripper_to_target(
+        self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None
+    ):
         # Get Calibration Data #
         if cam_id is not None:
-            readings, gripper_poses = self._readings_dict[cam_id], self._pose_dict[cam_id]
+            readings, gripper_poses = (
+                self._readings_dict[cam_id],
+                self._pose_dict[cam_id],
+            )
             self._curr_cam_id = cam_id
 
         # Get Target2Cam Transformation #
@@ -351,9 +424,12 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
 
         # Calculate Appropriate Transformations #
         t_base2gripper = [
-            -R.from_euler("xyz", pose[3:6]).inv().as_matrix() @ np.array(pose[:3]) for pose in gripper_poses
+            -R.from_euler("xyz", pose[3:6]).inv().as_matrix() @ np.array(pose[:3])
+            for pose in gripper_poses
         ]
-        R_base2gripper = [R.from_euler("xyz", pose[3:6]).inv().as_matrix() for pose in gripper_poses]
+        R_base2gripper = [
+            R.from_euler("xyz", pose[3:6]).inv().as_matrix() for pose in gripper_poses
+        ]
 
         # Perform Calibration #
         rmat, pos = cv2.calibrateHandEye(
@@ -371,7 +447,9 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
 
         return pose
 
-    def _calculate_gripper_to_base(self, train_readings, train_gripper_poses, eval_readings=None):
+    def _calculate_gripper_to_base(
+        self, train_readings, train_gripper_poses, eval_readings=None
+    ):
         if eval_readings is None:
             eval_readings = train_readings
 
@@ -394,14 +472,18 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
         R_gripper2target = R.from_euler("xyz", gripper2target[3:]).as_matrix()
         t_gripper2target = np.array(gripper2target[:3])
 
-        cam2base = self._calibrate_cam_to_base(gripper_poses=train_gripper_poses, target2cam_results=train_results)
+        cam2base = self._calibrate_cam_to_base(
+            gripper_poses=train_gripper_poses, target2cam_results=train_results
+        )
         R_cam2base = R.from_euler("xyz", cam2base[3:]).as_matrix()
         t_cam2base = np.array(cam2base[:3])
 
         # Calculate Gripper2Base #
         for i in range(len(eval_R_target2cam)):
             R_gripper2cam = eval_R_target2cam[i] @ R_gripper2target
-            t_gripper2cam = eval_R_target2cam[i] @ t_gripper2target + eval_t_target2cam[i]
+            t_gripper2cam = (
+                eval_R_target2cam[i] @ t_gripper2target + eval_t_target2cam[i]
+            )
 
             R_gripper2base = R_cam2base @ R_gripper2cam
             t_gripper2base = R_cam2base @ t_gripper2cam + t_cam2base
@@ -433,16 +515,25 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
         test_readings = [readings[i] for i in test_ind]
 
         # Calculate Approximate Gripper2Base Transformations #
-        results = self._calculate_gripper_to_base(train_readings, train_poses, eval_readings=test_readings)
+        results = self._calculate_gripper_to_base(
+            train_readings, train_poses, eval_readings=test_readings
+        )
         if results is None:
             return False
         approx_poses, successes = results
         test_poses = np.array(test_poses)[successes]
 
         # Calculate Per Dimension Error #
-        pose_error = np.array([pose_diff(pose, approx_pose) for pose, approx_pose in zip(test_poses, approx_poses)])
+        pose_error = np.array(
+            [
+                pose_diff(pose, approx_pose)
+                for pose, approx_pose in zip(test_poses, approx_poses)
+            ]
+        )
         lin_error = np.linalg.norm(pose_error[:, :3], axis=0) ** 2 / pose_error.shape[0]
-        rot_error = np.linalg.norm(pose_error[:, 3:6], axis=0) ** 2 / pose_error.shape[0]
+        rot_error = (
+            np.linalg.norm(pose_error[:, 3:6], axis=0) ** 2 / pose_error.shape[0]
+        )
 
         # Check Calibration Error #
         lin_success = np.all(lin_error < self.lin_error_threshold)
@@ -456,7 +547,14 @@ class ThirdPersonCameraCalibrator(CharucoDetector):
 
 
 class HandCameraCalibrator(CharucoDetector):
-    def __init__(self, camera, lin_error_threshold=1e-3, rot_error_threshold=1e-2, train_percentage=0.7, **kwargs):
+    def __init__(
+        self,
+        camera,
+        lin_error_threshold=1e-3,
+        rot_error_threshold=1e-2,
+        train_percentage=0.7,
+        **kwargs,
+    ):
         self.lin_error_threshold = lin_error_threshold
         self.rot_error_threshold = rot_error_threshold
         self.train_percentage = train_percentage
@@ -465,10 +563,15 @@ class HandCameraCalibrator(CharucoDetector):
     def calibrate(self, cam_id):
         return self._calibrate_cam_to_gripper(cam_id=cam_id)
 
-    def _calibrate_cam_to_gripper(self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None):
+    def _calibrate_cam_to_gripper(
+        self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None
+    ):
         # Get Calibration Data #
         if cam_id is not None:
-            readings, gripper_poses = self._readings_dict[cam_id], self._pose_dict[cam_id]
+            readings, gripper_poses = (
+                self._readings_dict[cam_id],
+                self._pose_dict[cam_id],
+            )
             self._curr_cam_id = cam_id
 
         # Get Target2Cam Transformation #
@@ -482,7 +585,9 @@ class HandCameraCalibrator(CharucoDetector):
 
         # Calculate Appropriate Transformations #
         t_gripper2base = [np.array(pose[:3]) for pose in gripper_poses]
-        R_gripper2base = [R.from_euler("xyz", pose[3:6]).as_matrix() for pose in gripper_poses]
+        R_gripper2base = [
+            R.from_euler("xyz", pose[3:6]).as_matrix() for pose in gripper_poses
+        ]
 
         # Perform Calibration #
         rmat, pos = cv2.calibrateHandEye(
@@ -500,10 +605,15 @@ class HandCameraCalibrator(CharucoDetector):
 
         return pose
 
-    def _calibrate_base_to_target(self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None):
+    def _calibrate_base_to_target(
+        self, cam_id=None, readings=None, gripper_poses=None, target2cam_results=None
+    ):
         # Get Calibration Data #
         if cam_id is not None:
-            readings, gripper_poses = self._readings_dict[cam_id], self._pose_dict[cam_id]
+            readings, gripper_poses = (
+                self._readings_dict[cam_id],
+                self._pose_dict[cam_id],
+            )
             self._curr_cam_id = cam_id
 
         # Get Target2Cam Transformation #
@@ -517,7 +627,9 @@ class HandCameraCalibrator(CharucoDetector):
 
         # Calculate Appropriate Transformations #
         t_gripper2base = [np.array(pose[:3]) for pose in gripper_poses]
-        R_gripper2base = [R.from_euler("xyz", pose[3:6]).as_matrix() for pose in gripper_poses]
+        R_gripper2base = [
+            R.from_euler("xyz", pose[3:6]).as_matrix() for pose in gripper_poses
+        ]
 
         # Perform Calibration #
         rmat, pos = cv2.calibrateHandEye(
@@ -535,7 +647,9 @@ class HandCameraCalibrator(CharucoDetector):
 
         return pose
 
-    def _calculate_gripper_to_base(self, train_readings, train_gripper_poses, eval_readings=None):
+    def _calculate_gripper_to_base(
+        self, train_readings, train_gripper_poses, eval_readings=None
+    ):
         if eval_readings is None:
             eval_readings = train_readings
 
@@ -552,11 +666,15 @@ class HandCameraCalibrator(CharucoDetector):
             return None
 
         # Use Training Data For Calibrations #
-        base2target = self._calibrate_base_to_target(gripper_poses=train_gripper_poses, target2cam_results=train_results)
+        base2target = self._calibrate_base_to_target(
+            gripper_poses=train_gripper_poses, target2cam_results=train_results
+        )
         R_base2target = R.from_euler("xyz", base2target[3:]).as_matrix()
         t_base2target = np.array(base2target[:3])
 
-        cam2gripper = self._calibrate_cam_to_gripper(gripper_poses=train_gripper_poses, target2cam_results=train_results)
+        cam2gripper = self._calibrate_cam_to_gripper(
+            gripper_poses=train_gripper_poses, target2cam_results=train_results
+        )
         R_cam2gripper = R.from_euler("xyz", cam2gripper[3:]).as_matrix()
         t_cam2gripper = np.array(cam2gripper[:3])
 
@@ -598,16 +716,25 @@ class HandCameraCalibrator(CharucoDetector):
         test_readings = [readings[i] for i in test_ind]
 
         # Calculate Approximate Gripper2Base Transformations #
-        results = self._calculate_gripper_to_base(train_readings, train_poses, eval_readings=test_readings)
+        results = self._calculate_gripper_to_base(
+            train_readings, train_poses, eval_readings=test_readings
+        )
         if results is None:
             return False
         approx_poses, successes = results
         test_poses = np.array(test_poses)[successes]
 
         # Calculate Per Dimension Error #
-        pose_error = np.array([pose_diff(pose, approx_pose) for pose, approx_pose in zip(test_poses, approx_poses)])
+        pose_error = np.array(
+            [
+                pose_diff(pose, approx_pose)
+                for pose, approx_pose in zip(test_poses, approx_poses)
+            ]
+        )
         lin_error = np.linalg.norm(pose_error[:, :3], axis=0) ** 2 / pose_error.shape[0]
-        rot_error = np.linalg.norm(pose_error[:, 3:6], axis=0) ** 2 / pose_error.shape[0]
+        rot_error = (
+            np.linalg.norm(pose_error[:, 3:6], axis=0) ** 2 / pose_error.shape[0]
+        )
 
         # Check Calibration Error #
         lin_success = np.all(lin_error < self.lin_error_threshold)
@@ -636,12 +763,16 @@ def calibrate_camera(
     Hand Calibration Instructions: Press A when the hand camera is aligned with the board from 1 foot away."""
 
     if obs_pointer is not None:
-        assert isinstance(obs_pointer, dict), "Error in calibrate_camera, obs_pointer is not dict!"
+        assert isinstance(obs_pointer, dict), (
+            "Error in calibrate_camera, obs_pointer is not dict!"
+        )
 
     # Get Camera + Set Calibration Mode #
     camera = env.get_camera(camera_id)
     env.set_camera_calibration_mode(camera_id)
-    assert pause_time > (camera.latency / 1000), "Error in calibrate_camera, pause_time too short!"
+    assert pause_time > (camera.latency / 1000), (
+        "Error in calibrate_camera, pause_time too short!"
+    )
 
     # Select Proper Calibration Procedure #
     hand_camera = camera.serial_number == hand_camera_id
@@ -665,12 +796,12 @@ def calibrate_camera(
         state, _ = env.get_state()
         cam_obs, _ = env.read_cameras()
 
-
-
         for full_cam_id in cam_obs["image"]:
             if camera_id not in full_cam_id:
                 continue
-            cam_obs["image"][full_cam_id] = calibrator.augment_image(full_cam_id, cam_obs["image"][full_cam_id])
+            cam_obs["image"][full_cam_id] = calibrator.augment_image(
+                full_cam_id, cam_obs["image"][full_cam_id]
+            )
         if obs_pointer is not None:
             obs_pointer.update(cam_obs)
 
@@ -731,7 +862,9 @@ def calibrate_camera(
                 img = deepcopy(cam_obs["image"][full_cam_id])
                 pose = state["cartesian_position"].copy()
                 calibrator.add_sample(full_cam_id, img, pose)
-            cam_obs["image"][full_cam_id] = calibrator.augment_image(full_cam_id, cam_obs["image"][full_cam_id])
+            cam_obs["image"][full_cam_id] = calibrator.augment_image(
+                full_cam_id, cam_obs["image"][full_cam_id]
+            )
 
         # Update Obs Pointer #
         if obs_pointer is not None:
@@ -777,24 +910,33 @@ def check_calibration(
     wait_for_controller=False,
     reset_robot=True,
 ):
-
     def draw_gripper(img, pos, rot, gripper, intrinsics, color=(0, 255, 255, 255)):
         gripper_open_width, gripper_close_width = 0.07, 0.02  # meters
-        gripper_width = gripper * gripper_close_width + (1 - gripper) * gripper_open_width
-        gripper_lines = np.array([
-            [[0.0, gripper_width, 0.05], [0.0, gripper_width, 0.18]],
-            [[0.0, -gripper_width, 0.05], [0.0, -gripper_width, 0.18]],
-            [[0.0, gripper_width, 0.05], [0.0, -gripper_width, 0.05]],
-            [[0.0, 0.0, 0.0], [0.0, 0.0, 0.05]],
-        ])
+        gripper_width = (
+            gripper * gripper_close_width + (1 - gripper) * gripper_open_width
+        )
+        gripper_lines = np.array(
+            [
+                [[0.0, gripper_width, 0.05], [0.0, gripper_width, 0.18]],
+                [[0.0, -gripper_width, 0.05], [0.0, -gripper_width, 0.18]],
+                [[0.0, gripper_width, 0.05], [0.0, -gripper_width, 0.05]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.05]],
+            ]
+        )
 
-        for (gripper_point_1, gripper_point_2) in gripper_lines:
+        for gripper_point_1, gripper_point_2 in gripper_lines:
             gripper_point_1 = pos + euler_to_rmat(rot) @ gripper_point_1
             gripper_pixel_1 = project_camera_to_image(gripper_point_1, intrinsics)
             gripper_point_2 = pos + euler_to_rmat(rot) @ gripper_point_2
             gripper_pixel_2 = project_camera_to_image(gripper_point_2, intrinsics)
-            cv2.line(img, tuple(map(int, gripper_pixel_1)), tuple(map(int, gripper_pixel_2)), color, 4)
-        
+            cv2.line(
+                img,
+                tuple(map(int, gripper_pixel_1)),
+                tuple(map(int, gripper_pixel_2)),
+                color,
+                4,
+            )
+
         gripper_point = np.array([0.0, 0.0, 0.18])
         gripper_point = pos + euler_to_rmat(rot) @ gripper_point
         gripper_pixel = project_camera_to_image(gripper_point, intrinsics)
@@ -814,12 +956,23 @@ def check_calibration(
         state, _ = env.get_state()
         cam_obs, _ = env.read_cameras()
 
-        pos, rot, gripper_pos = state["cartesian_position"][:3], state["cartesian_position"][3:], state["gripper_position"]
+        pos, rot, gripper_pos = (
+            state["cartesian_position"][:3],
+            state["cartesian_position"][3:],
+            state["gripper_position"],
+        )
         for full_cam_id in cam_obs["image"]:
-            extrinsics, intrinsics = obs["camera_extrinsics"][full_cam_id], obs["camera_intrinsics"][full_cam_id]
-            extrinsics = np.linalg.inv(compose_transformation_matrix(extrinsics[:3], extrinsics[3:6]))
+            extrinsics, intrinsics = (
+                obs["camera_extrinsics"][full_cam_id],
+                obs["camera_intrinsics"][full_cam_id],
+            )
+            extrinsics = np.linalg.inv(
+                compose_transformation_matrix(extrinsics[:3], extrinsics[3:6])
+            )
             cur_pos, cur_rot = transform_world_to_camera(pos, rot, extrinsics)
-            draw_gripper(cam_obs["image"][full_cam_id], cur_pos, cur_rot, gripper_pos, intrinsics)
+            draw_gripper(
+                cam_obs["image"][full_cam_id], cur_pos, cur_rot, gripper_pos, intrinsics
+            )
         if obs_pointer is not None:
             obs_pointer.update(cam_obs)
 
@@ -832,6 +985,6 @@ def check_calibration(
         skip_step = wait_for_controller and (not controller_info["movement_enabled"])
         if not skip_step:
             env.step(action)
-        
+
         if controller_info["success"] or controller_info["failure"]:
             break

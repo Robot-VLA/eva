@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from eva.controllers.controller import Controller
@@ -6,7 +5,12 @@ from eva.utils.trajectory_utils import TrajectoryReader
 
 
 class Replayer(Controller):
-    def __init__(self, traj_path, action_space="cartesian_position", gripper_action_space="position"):
+    def __init__(
+        self,
+        traj_path,
+        action_space="cartesian_position",
+        gripper_action_space="position",
+    ):
         self.action_space = action_space
         self.gripper_action_space = gripper_action_space
         self.gripper_action_space_hack = False
@@ -33,7 +37,7 @@ class Replayer(Controller):
             self.traj = np.array(self.traj)
         else:
             raise ValueError(f"Invalid trajectory format: {traj_path}")
-        
+
         self.traj_len = self.traj.shape[0]
         self.delay = 0
         self.t = 0
@@ -43,12 +47,12 @@ class Replayer(Controller):
             "movement_enabled": False,
             "controller_on": True,
         }
-    
+
     def register_key(self, key):
         if key == ord(" "):
             self._state["movement_enabled"] = not self._state["movement_enabled"]
             print("Movement enabled:", self._state["movement_enabled"])
-    
+
     def get_info(self):
         return self._state
 
@@ -69,7 +73,9 @@ class Replayer(Controller):
                 # In some scenarios, this will punish imprecise grasps by preventing the gripper from closing more once it has room
                 # This happens less with gripper velocity control, so we convert gripper position to velocity
                 gripper_action_gain = 3.0
-                action[-1] = (action[-1] - observation["robot_state"]["gripper_position"]) * gripper_action_gain
+                action[-1] = (
+                    action[-1] - observation["robot_state"]["gripper_position"]
+                ) * gripper_action_gain
                 action[-1] = np.clip(action[-1], -1, 1)
 
             self.t = self.t + 1

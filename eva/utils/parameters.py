@@ -1,17 +1,17 @@
 from cv2 import aruco
 
 ##### ROBOT #####
-nuc_ip = '172.16.0.4'
-robot_ip = '172.16.0.2'
+nuc_ip = "172.16.0.4"
+robot_ip = "172.16.0.2"
 laptop_ip = "127.0.0.1"
-sudo_password = 'robotlearning'
+sudo_password = "robotlearning"
 robot_type = "fr3"  # 'panda' or 'fr3'
 robot_serial_number = ""
 
 ##### CAMERAS #####
-hand_camera_id = '15512737'
-varied_camera_1_id = '26368109'
-varied_camera_2_id = '25455306'
+hand_camera_id = "15512737"
+varied_camera_1_id = "26368109"
+varied_camera_2_id = "25455306"
 
 camera_type_dict = {
     hand_camera_id: 0,
@@ -28,6 +28,7 @@ camera_flip_dict = {
     varied_camera_1_id: True,
     varied_camera_2_id: True,
 }
+
 
 def get_camera_type(cam_id):
     if cam_id not in camera_type_dict:

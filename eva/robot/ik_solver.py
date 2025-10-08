@@ -16,9 +16,13 @@ class RobotIKSolver:
 
         self._arm = FrankaArm()
         self._physics = mjcf.Physics.from_mjcf_model(self._arm.mjcf_model)
-        self._effector = arm_effector.ArmEffector(arm=self._arm, action_range_override=None, robot_name=self._arm.name)
+        self._effector = arm_effector.ArmEffector(
+            arm=self._arm, action_range_override=None, robot_name=self._arm.name
+        )
 
-        self._effector_model = cartesian_6d_velocity_effector.ModelParams(self._arm.wrist_site, self._arm.joints)
+        self._effector_model = cartesian_6d_velocity_effector.ModelParams(
+            self._arm.wrist_site, self._arm.joints
+        )
 
         self._effector_control = cartesian_6d_velocity_effector.ControlParams(
             control_timestep_seconds=1 / self.control_hz,
@@ -35,8 +39,13 @@ class RobotIKSolver:
             max_nullspace_control_iterations=300,
         )
 
-        self._cart_effector_6d = cartesian_6d_velocity_effector.Cartesian6dVelocityEffector(
-            self._arm.name, self._effector, self._effector_model, self._effector_control
+        self._cart_effector_6d = (
+            cartesian_6d_velocity_effector.Cartesian6dVelocityEffector(
+                self._arm.name,
+                self._effector,
+                self._effector_model,
+                self._effector_control,
+            )
         )
         self._cart_effector_6d.after_compile(self._arm.mjcf_model, self._physics)
 
@@ -89,7 +98,9 @@ class RobotIKSolver:
         if isinstance(joint_velocity, list):
             joint_velocity = np.array(joint_velocity)
 
-        relative_max_joint_vel = self.joint_delta_to_velocity(self.relative_max_joint_delta)
+        relative_max_joint_vel = self.joint_delta_to_velocity(
+            self.relative_max_joint_delta
+        )
         max_joint_vel_norm = (np.abs(joint_velocity) / relative_max_joint_vel).max()
 
         if max_joint_vel_norm > 1:

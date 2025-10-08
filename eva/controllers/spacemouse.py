@@ -3,7 +3,6 @@ import time
 from collections import namedtuple
 import math
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
 from eva.controllers.controller import Controller
 
@@ -84,7 +83,9 @@ def rotation_matrix(angle, direction, point=None):
     cosa = math.cos(angle)
     direction = unit_vector(direction[:3])
     # rotation matrix around unit vector
-    R = np.array(((cosa, 0.0, 0.0), (0.0, cosa, 0.0), (0.0, 0.0, cosa)), dtype=np.float32)
+    R = np.array(
+        ((cosa, 0.0, 0.0), (0.0, cosa, 0.0), (0.0, 0.0, cosa)), dtype=np.float32
+    )
     R += np.outer(direction, direction) * (1.0 - cosa)
     direction *= sina
     R += np.array(
@@ -188,8 +189,8 @@ class SpaceMouseInterface:
 
     def __init__(
         self,
-        vendor_id=0x256f,  # Bus 003 Device 043
-        product_id=0xc635, # 3Dconnexion SpaceMouse Compact
+        vendor_id=0x256F,  # Bus 003 Device 043
+        product_id=0xC635,  # 3Dconnexion SpaceMouse Compact
         pos_sensitivity=5,
         rot_sensitivity=5,
         action_scale=0.08,
@@ -207,7 +208,7 @@ class SpaceMouseInterface:
         self.action_scale = action_scale
         self.deadzone = deadzone
         self.smoothing = smoothing
-        
+
         # Previous values for smoothing
         self._prev_dpos = np.zeros(3)
         self._prev_drot = np.zeros(3)
@@ -237,7 +238,7 @@ class SpaceMouseInterface:
     @staticmethod
     def _display_controls():
         """
-        Method to pretty print controls. 
+        Method to pretty print controls.
         """
 
         def print_command(char, info):
@@ -250,7 +251,9 @@ class SpaceMouseInterface:
         print_command("Left button (hold)", "toggle gripper")
         print_command("Move mouse laterally", "move arm horizontally in x-y plane")
         print_command("Move mouse vertically", "move arm vertically")
-        print_command("Twist mouse about an axis", "rotate arm about a corresponding axis")
+        print_command(
+            "Twist mouse about an axis", "rotate arm about a corresponding axis"
+        )
         print("")
 
     def _reset_internal_state(self):
@@ -283,23 +286,23 @@ class SpaceMouseInterface:
         """
         raw_dpos = np.array(self.control[:3]) * self.action_scale
         raw_drot = np.array(self.control[3:]) * self.action_scale
-        
+
         # Apply better mapping for intuitive control
         dpos = np.array([-raw_dpos[1], raw_dpos[0], -raw_dpos[2]])
         drot = np.array([-raw_drot[1], raw_drot[0], raw_drot[2]])
-        
+
         # Apply deadzone
         dpos = self._apply_deadzone(dpos, self.deadzone)
         drot = self._apply_deadzone(drot, self.deadzone)
-        
+
         # Apply smoothing
         dpos = self._smooth_control(dpos, self._prev_dpos, self.smoothing)
         drot = self._smooth_control(drot, self._prev_drot, self.smoothing)
-        
+
         # Store for next smoothing cycle
         self._prev_dpos = dpos
         self._prev_drot = drot
-        
+
         # Handle rotation matrix calculation for visualization if needed
         roll, pitch, yaw = raw_drot
         drot1 = rotation_matrix(angle=-pitch, direction=[1.0, 0, 0], point=None)[:3, :3]
@@ -315,7 +318,7 @@ class SpaceMouseInterface:
             hold=self.single_click_and_hold,
             lock=self.lock_state,
         )
-    
+
     def _apply_deadzone(self, values, threshold):
         """Apply deadzone filter to control values"""
         magnitude = np.linalg.norm(values)
@@ -325,22 +328,22 @@ class SpaceMouseInterface:
             # Scale values to maintain continuity at deadzone boundary
             scale = (magnitude - threshold) / (magnitude * (1 - threshold))
             return values * scale
-    
+
     def _smooth_control(self, current, previous, smoothing_factor):
         """Apply exponential smoothing to control values"""
         return smoothing_factor * previous + (1 - smoothing_factor) * current
-    
+
     def _apply_response_curve(self, values, curve_factor=2.0):
         """Apply exponential response curve for better fine control"""
         signs = np.sign(values)
         magnitudes = np.abs(values)
-        return signs * (magnitudes ** curve_factor)
+        return signs * (magnitudes**curve_factor)
 
     def run(self):
         """Listener method that keeps pulling new messages."""
         last_debug_time = time.time()
         debug_interval = 0.5  # Debug output at 2Hz
-        
+
         while True:
             try:
                 d = self.device.read(13)  # Read more bytes for complete data
@@ -348,58 +351,62 @@ class SpaceMouseInterface:
                     continue
 
                 # Throttled debug output
-                if hasattr(self, 'debug') and self.debug:
+                if hasattr(self, "debug") and self.debug:
                     current_time = time.time()
                     if current_time - last_debug_time > debug_interval:
                         last_debug_time = current_time
                         print(f"Raw data: {d}")
                         print(f"Control: {self._control}")
-                        print(f"Button states - Grip: {self.gripper_is_closed}, Hold: {self.single_click_and_hold}, Reset: {self.lock_state}")
+                        print(
+                            f"Button states - Grip: {self.gripper_is_closed}, Hold: {self.single_click_and_hold}, Reset: {self.lock_state}"
+                        )
 
                 # Translation data (X, Y, Z movement)
                 if d[0] == 1:
                     x = convert(d[1], d[2]) if len(d) > 2 else 0.0
                     y = convert(d[3], d[4]) if len(d) > 4 else 0.0
                     z = convert(d[5], d[6]) if len(d) > 6 else 0.0
-                    
+
                     # Scale and store translation values with sensitivity
-                    self._control[0] = x * self.pos_sensitivity  
+                    self._control[0] = x * self.pos_sensitivity
                     self._control[1] = y * self.pos_sensitivity
                     self._control[2] = z * self.pos_sensitivity
-                    
+
                 # Rotation data (Roll, Pitch, Yaw)
                 elif d[0] == 2:
                     roll = convert(d[1], d[2]) if len(d) > 2 else 0.0
                     pitch = convert(d[3], d[4]) if len(d) > 4 else 0.0
                     yaw = convert(d[5], d[6]) if len(d) > 6 else 0.0
-                    
+
                     # Store rotation values directly, no complex matrix operations
                     self._control[3] = roll * self.rot_sensitivity
                     self._control[4] = pitch * self.rot_sensitivity
                     self._control[5] = yaw * self.rot_sensitivity
-                    
+
                 # Button data packet
                 elif d[0] == 3:  # Button data on SpaceMouse Compact
                     if len(d) >= 2:
                         button_state = d[1]
-                        
+
                         # Left button - toggle gripper
                         if button_state & 1:  # Bit 0 set
                             t_click = time.time()
-                            if not hasattr(self, 't_last_click'):
+                            if not hasattr(self, "t_last_click"):
                                 self.t_last_click = t_click
                             self.elapsed_time = t_click - self.t_last_click
                             self.t_last_click = t_click
-                            
+
                             # Toggle gripper state on press
                             if self.elapsed_time > 0.5:
                                 self.gripper_is_closed = not self.gripper_is_closed
-                                print(f"Gripper state changed: {'closed' if self.gripper_is_closed else 'open'}")
-                            
+                                print(
+                                    f"Gripper state changed: {'closed' if self.gripper_is_closed else 'open'}"
+                                )
+
                             self.single_click_and_hold = True
                         else:
                             self.single_click_and_hold = False
-                        
+
                         # Right button - reset
                         if button_state & 2:  # Bit 1 set
                             self.lock_state = 1
@@ -445,18 +452,20 @@ class SpaceMouseInterface:
         """Enable debug mode to print all raw inputs from the device"""
         self.debug = enable
         print(f"Debug mode {'enabled' if enable else 'disabled'}")
-        
+
         # Dump current state
         if enable:
             print("\nCURRENT STATE:")
             print(f"Position control: {self._control[:3]}")
             print(f"Rotation control: {self._control[3:]}")
-            print(f"Gripper is closed: {self.gripper_is_closed} (returns {int(self.gripper_is_closed)})")
+            print(
+                f"Gripper is closed: {self.gripper_is_closed} (returns {int(self.gripper_is_closed)})"
+            )
             print(f"Current grasp command: {self.control_gripper} (returned to teleop)")
             print(f"Single click hold: {self.single_click_and_hold}")
             print(f"Lock state: {self.lock_state}")
             print("\nWAITING FOR INPUT - move mouse or press buttons...")
-            
+
         # Capture and print a few raw packets to understand the data structure
         if enable:
             for i in range(5):
@@ -475,24 +484,24 @@ class SpaceMouse(Controller):
         pos_sensitivity: float = 8.0,  # Adjusted
         rot_sensitivity: float = 8.0,  # Adjusted
         action_scale: float = 0.1,
-        deadzone: float = 0.05,       # Added
-        smoothing: float = 0.3        # Added
+        deadzone: float = 0.05,  # Added
+        smoothing: float = 0.3,  # Added
     ):
         self.action_space = "cartesian_velocity"
         self.gripper_action_space = "velocity"
         self.max_lin_vel = max_lin_vel
         self.max_rot_vel = max_rot_vel
         self.max_gripper_vel = max_gripper_vel
-        
+
         # Create SpaceMouseInterface with improved parameters
         self.interface = SpaceMouseInterface(
             pos_sensitivity=pos_sensitivity,
             rot_sensitivity=rot_sensitivity,
             action_scale=action_scale,
             deadzone=deadzone,
-            smoothing=smoothing
+            smoothing=smoothing,
         )
-        
+
         # Internal state
         self._state = {
             "success": False,
@@ -500,7 +509,7 @@ class SpaceMouse(Controller):
             "movement_enabled": True,
             "controller_on": True,
         }
-        
+
         print("\nSpaceMouse controls:")
         print("- Move to control position")
         print("- Twist to control orientation")
@@ -520,58 +529,62 @@ class SpaceMouse(Controller):
             "controller_on": True,
         }
         self.interface._display_controls()
-        
+
     def _limit_velocity(self, lin_vel, rot_vel, gripper_vel):
         """Limit linear and angular velocity magnitudes"""
         lin_vel_norm = np.linalg.norm(lin_vel)
         rot_vel_norm = np.linalg.norm(rot_vel)
         gripper_vel_norm = np.abs(gripper_vel)
-        
+
         if lin_vel_norm > self.max_lin_vel:
             lin_vel = lin_vel * self.max_lin_vel / lin_vel_norm
         if rot_vel_norm > self.max_rot_vel:
             rot_vel = rot_vel * self.max_rot_vel / rot_vel_norm
         if gripper_vel_norm > self.max_gripper_vel:
             gripper_vel = gripper_vel * self.max_gripper_vel / gripper_vel_norm
-            
+
         return lin_vel, rot_vel, gripper_vel
 
     def forward(self, obs_dict):
         """Calculate action with improved control response"""
         # Get current SpaceMouse state
         data = self.interface.get_controller_state()
-        
+
         # Extract control inputs - dpos and drot are already remapped
         dpos = data["dpos"]
         drot = data["raw_drotation"]
         gripper_action = 1.0 if data["grasp"] else -1.0
-        
+
         # Apply non-linear response curve for better fine control
         # This makes small movements more precise while allowing fast large movements
         lin_vel = self._apply_control_curve(dpos)
-        rot_vel = self._apply_control_curve(drot, exponent=1.5)  # Less aggressive for rotation
-        
+        rot_vel = self._apply_control_curve(
+            drot, exponent=1.5
+        )  # Less aggressive for rotation
+
         # Limit velocities
-        lin_vel, rot_vel, grip_vel = self._limit_velocity(lin_vel, rot_vel, gripper_action)
-        
+        lin_vel, rot_vel, grip_vel = self._limit_velocity(
+            lin_vel, rot_vel, gripper_action
+        )
+
         # Build complete action
         action = np.concatenate([lin_vel, rot_vel, [grip_vel]])
         action = np.clip(action, -1, 1)
-        
-        return action, {} # TODO info_dict 
-    
+
+        return action, {}  # TODO info_dict
+
     def _apply_control_curve(self, values, exponent=2.0):
         """Apply non-linear response curve for better control"""
         signs = np.sign(values)
         magnitudes = np.abs(values)
-        return signs * (magnitudes ** exponent)
+        return signs * (magnitudes**exponent)
 
     def get_info(self):
         """Return controller info, compatible with other controller interfaces"""
         # Copy current state
         ret = self._state.copy()
         return ret
-    
+
     def register_key(self, key):
         """Handle keyboard input, compatible with other controller interfaces"""
         if key == ord(" "):
@@ -583,12 +596,12 @@ class SpaceMouse(Controller):
             print("Spacemouse teleop success")
             self._state["success"] = True
             self.interface._reset_internal_state()
-        elif key == ord("n"): 
+        elif key == ord("n"):
             # 'n' key sets failure
             print("Spacemouse teleop failure")
             self._state["failure"] = True
             self.interface._reset_internal_state()
-    
+
     def close(self):
         """Close controller and release resources"""
         print("Closing SpaceMouse")

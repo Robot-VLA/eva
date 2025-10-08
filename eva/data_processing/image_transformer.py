@@ -4,7 +4,12 @@ from torchvision import transforms as T
 
 class ImageTransformer:
     def __init__(
-        self, remove_alpha=False, bgr_to_rgb=False, augment=False, to_tensor=False, image_path="observation/camera/image"
+        self,
+        remove_alpha=False,
+        bgr_to_rgb=False,
+        augment=False,
+        to_tensor=False,
+        image_path="observation/camera/image",
     ):
         self.image_path = image_path.split("/")
         self.apply_transforms = any([remove_alpha, bgr_to_rgb, augment, to_tensor])

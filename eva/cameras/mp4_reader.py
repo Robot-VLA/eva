@@ -71,7 +71,9 @@ class MP4Reader:
         return self.resize_func(frame, self.resolution)
         # return cv2.resize(frame, self.resolution)#, interpolation=cv2.INTER_AREA)
 
-    def read_camera(self, ignore_data=False, correct_timestamp=None, return_timestamp=False):
+    def read_camera(
+        self, ignore_data=False, correct_timestamp=None, return_timestamp=False
+    ):
         # Skip if Read Unnecesary #
         if self.skip_reading:
             return {}
@@ -90,7 +92,9 @@ class MP4Reader:
             return None
 
         # Check Image Timestamp #
-        timestamps_given = (received_time is not None) and (correct_timestamp is not None)
+        timestamps_given = (received_time is not None) and (
+            correct_timestamp is not None
+        )
         if timestamps_given and (correct_timestamp != received_time):
             print("Timestamps did not match...")
             return None
@@ -103,8 +107,12 @@ class MP4Reader:
         else:
             single_width = frame.shape[1] // 2
             data_dict["image"] = {
-                self.serial_number + "_left": self._process_frame(frame[:, :single_width, :]),
-                self.serial_number + "_right": self._process_frame(frame[:, single_width:, :]),
+                self.serial_number + "_left": self._process_frame(
+                    frame[:, :single_width, :]
+                ),
+                self.serial_number + "_right": self._process_frame(
+                    frame[:, single_width:, :]
+                ),
             }
 
         if return_timestamp:

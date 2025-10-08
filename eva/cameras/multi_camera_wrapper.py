@@ -16,13 +16,17 @@ class MultiCameraWrapper:
         self.camera_dict = {cam.serial_number: cam for cam in zed_cameras}
         self.set_camera_kwargs(camera_kwargs)
         self.set_trajectory_mode()
-    
+
     def set_camera_kwargs(self, camera_kwargs):
         if camera_kwargs is None:
             camera_kwargs = {"default": {"depth": False, "pointcloud": False}}
         for cam_id in self.camera_dict.keys():
             cam_type = get_camera_type(cam_id)
-            curr_cam_kwargs = camera_kwargs[cam_type] if cam_type in camera_kwargs else camera_kwargs["default"]
+            curr_cam_kwargs = (
+                camera_kwargs[cam_type]
+                if cam_type in camera_kwargs
+                else camera_kwargs["default"]
+            )
             self.camera_dict[cam_id].set_reading_parameters(**curr_cam_kwargs)
 
     ### Calibration Functions ###
@@ -51,7 +55,10 @@ class MultiCameraWrapper:
     def set_trajectory_mode(self):
         # If High Res Calibration, Close All #
         close_all = any(
-            [cam.high_res_calibration and cam.current_mode == "calibration" for cam in self.camera_dict.values()]
+            [
+                cam.high_res_calibration and cam.current_mode == "calibration"
+                for cam in self.camera_dict.values()
+            ]
         )
 
         if close_all:
@@ -96,6 +103,7 @@ class MultiCameraWrapper:
         for camera in self.camera_dict.values():
             camera.disable_camera()
 
+
 class RecordedMultiCameraWrapper:
     def __init__(self, recording_folderpath, camera_kwargs={}):
         if camera_kwargs is None:
@@ -104,7 +112,7 @@ class RecordedMultiCameraWrapper:
 
         # Open Camera Readers #
         svo_filepaths = glob.glob(recording_folderpath + "/*.svo2")
-        mp4_filepaths = glob.glob(recording_folderpath + "/*.mp4")
+        mp4_filepaths = glob.glob(recording_folderpath + "/*.mp4")  # noqa: F841
         all_filepaths = svo_filepaths  # Only process SVO
 
         self.camera_dict = {}
@@ -131,14 +139,20 @@ class RecordedMultiCameraWrapper:
 
         for cam_id in all_cam_ids:
             cam_type = get_camera_type(cam_id)
-            curr_cam_kwargs = self.camera_kwargs[cam_type] if cam_type in self.camera_kwargs else self.camera_kwargs["default"]
+            curr_cam_kwargs = (
+                self.camera_kwargs[cam_type]
+                if cam_type in self.camera_kwargs
+                else self.camera_kwargs["default"]
+            )
             self.camera_dict[cam_id].set_reading_parameters(**curr_cam_kwargs)
 
             timestamp = timestamp_dict.get(cam_id + "_frame_received", None)
             if index is not None:
                 self.camera_dict[cam_id].set_frame_index(index)
 
-            data_dict = self.camera_dict[cam_id].read_camera(correct_timestamp=timestamp)
+            data_dict = self.camera_dict[cam_id].read_camera(
+                correct_timestamp=timestamp
+            )
 
             # Process Returned Data #
             if data_dict is None:
